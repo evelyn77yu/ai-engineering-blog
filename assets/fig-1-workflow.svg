@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 552" width="940" height="552" role="img" aria-label="双 Agent 交替开发工作流">
+  <defs>
+    <marker id="a1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/>
+    </marker>
+    <marker id="a1b" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#3B82F6"/>
+    </marker>
+  </defs>
+  <rect width="940" height="552" fill="#FFFFFF"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', Arial, sans-serif">
+    <text x="30" y="40" font-size="21" font-weight="700" fill="#0F172A">双 Agent 交替开发：一份规则、两类角色、单一评审流</text>
+    <text x="30" y="66" font-size="13" fill="#64748B">约定写进文件（不依赖对话记忆）· 评审对象是 diff · 人的裁决位始终保留</text>
+
+    <!-- Claude -->
+    <rect x="30" y="94" width="248" height="156" rx="12" fill="#FFF7F3" stroke="#F3C9B6"/>
+    <circle cx="62" cy="126" r="16" fill="#D97757"/>
+    <text x="62" y="132" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">C</text>
+    <text x="88" y="132" font-size="17" font-weight="700" fill="#0F172A">Claude</text>
+    <text x="48" y="156" font-size="12" font-weight="600" fill="#B45309">架构与框架</text>
+    <text x="48" y="184" font-size="12.5" fill="#334155">· 系统设计与模块边界划分</text>
+    <text x="48" y="206" font-size="12.5" fill="#334155">· 框架搭建与结构性重构</text>
+    <text x="48" y="228" font-size="12.5" fill="#334155">· 架构文档与 Agent 规则</text>
+
+    <!-- Codex -->
+    <rect x="662" y="94" width="248" height="156" rx="12" fill="#F0FBF6" stroke="#B7E4CE"/>
+    <circle cx="694" cy="126" r="16" fill="#10A37F"/>
+    <text x="694" y="132" font-size="14" font-weight="700" fill="#FFFFFF" text-anchor="middle">X</text>
+    <text x="720" y="132" font-size="17" font-weight="700" fill="#0F172A">Codex</text>
+    <text x="680" y="156" font-size="12" font-weight="600" fill="#047857">实现与优化</text>
+    <text x="680" y="184" font-size="12.5" fill="#334155">· 细分任务实现</text>
+    <text x="680" y="206" font-size="12.5" fill="#334155">· 性能优化与代码重构</text>
+    <text x="680" y="228" font-size="12.5" fill="#334155">· 对抗性交叉评审</text>
+
+    <!-- shared files -->
+    <rect x="318" y="94" width="304" height="156" rx="12" fill="#F8FAFC" stroke="#E2E8F0"/>
+    <text x="336" y="120" font-size="13" font-weight="700" fill="#0F172A">共享文件：约定的唯一载体</text>
+    <rect x="336" y="132" width="268" height="22" rx="4" fill="#FFFFFF" stroke="#E8EDF3"/>
+    <text x="346" y="148" font-size="12" fill="#334155">AGENTS.md　常驻规则 415 行</text>
+    <rect x="336" y="158" width="268" height="22" rx="4" fill="#FFFFFF" stroke="#E8EDF3"/>
+    <text x="346" y="174" font-size="12" fill="#334155">CLAUDE.md　项目上下文 155 行</text>
+    <rect x="336" y="184" width="268" height="22" rx="4" fill="#FFFFFF" stroke="#E8EDF3"/>
+    <text x="346" y="200" font-size="12" fill="#334155">docs/review-notes.md　滚动评审 21 轮</text>
+    <rect x="336" y="210" width="268" height="22" rx="4" fill="#FFFFFF" stroke="#E8EDF3"/>
+    <text x="346" y="226" font-size="12" fill="#334155">docs/drift.md　代码-文档漂移对账</text>
+
+    <line x1="282" y1="172" x2="314" y2="172" stroke="#94A3B8" stroke-width="2" marker-end="url(#a1)"/>
+    <line x1="314" y1="182" x2="282" y2="182" stroke="#94A3B8" stroke-width="2" marker-end="url(#a1)"/>
+    <line x1="626" y1="172" x2="658" y2="172" stroke="#94A3B8" stroke-width="2" marker-end="url(#a1)"/>
+    <line x1="658" y1="182" x2="626" y2="182" stroke="#94A3B8" stroke-width="2" marker-end="url(#a1)"/>
+
+    <!-- cycle -->
+    <text x="30" y="292" font-size="13" font-weight="700" fill="#0F172A">每个实现 / 评审周期</text>
+    <rect x="30" y="304" width="200" height="60" rx="8" fill="#FFF7F3" stroke="#F3C9B6"/>
+    <text x="130" y="328" font-size="13" font-weight="600" fill="#0F172A" text-anchor="middle">1　架构产出</text>
+    <text x="130" y="348" font-size="11.5" fill="#64748B" text-anchor="middle">Claude 定边界与契约</text>
+
+    <rect x="256" y="304" width="200" height="60" rx="8" fill="#F0FBF6" stroke="#B7E4CE"/>
+    <text x="356" y="328" font-size="13" font-weight="600" fill="#0F172A" text-anchor="middle">2　实现落地</text>
+    <text x="356" y="348" font-size="11.5" fill="#64748B" text-anchor="middle">Codex 在工作分支提交</text>
+
+    <rect x="482" y="304" width="200" height="60" rx="8" fill="#FFFFFF" stroke="#DBE3EC" stroke-dasharray="4 3"/>
+    <text x="582" y="328" font-size="13" font-weight="600" fill="#0F172A" text-anchor="middle">3　交叉评审</text>
+    <text x="582" y="348" font-size="11.5" fill="#64748B" text-anchor="middle">针对 branch vs main 的 diff</text>
+
+    <rect x="708" y="304" width="202" height="60" rx="8" fill="#EEF4FF" stroke="#BFD6F6"/>
+    <text x="809" y="328" font-size="13" font-weight="600" fill="#0F172A" text-anchor="middle">4　人工把关</text>
+    <text x="809" y="348" font-size="11.5" fill="#64748B" text-anchor="middle">裁决分歧并决定下一轮</text>
+
+    <line x1="232" y1="334" x2="252" y2="334" stroke="#94A3B8" stroke-width="2" marker-end="url(#a1)"/>
+    <line x1="458" y1="334" x2="478" y2="334" stroke="#94A3B8" stroke-width="2" marker-end="url(#a1)"/>
+    <line x1="684" y1="334" x2="704" y2="334" stroke="#94A3B8" stroke-width="2" marker-end="url(#a1)"/>
+    <path d="M 809 366 L 809 386 L 130 386 L 130 366" fill="none" stroke="#3B82F6" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#a1b)"/>
+    <text x="470" y="381" font-size="11.5" fill="#3B82F6" text-anchor="middle">下一轮（评审日志追加 Round N+1）</text>
+
+    <!-- governance -->
+    <text x="30" y="428" font-size="13" font-weight="700" fill="#0F172A">三条起作用的治理机制</text>
+    <rect x="30" y="440" width="286" height="96" rx="8" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="48" y="464" font-size="12.5" font-weight="600" fill="#0F172A">规则必须可被机械检查</text>
+    <text x="48" y="485" font-size="11.5" fill="#475569">「device/ 层禁止 import React」可以在</text>
+    <text x="48" y="503" font-size="11.5" fill="#475569">目录里搜一次就判定；「模块要解耦」不行。</text>
+    <text x="48" y="523" font-size="11.5" fill="#B45309">无法检查的规则 ≈ 不存在</text>
+
+    <rect x="327" y="440" width="286" height="96" rx="8" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="345" y="464" font-size="12.5" font-weight="600" fill="#0F172A">差异必须显式归档</text>
+    <text x="345" y="485" font-size="11.5" fill="#475569">每轮标注：文档领先 / 代码领先 /</text>
+    <text x="345" y="503" font-size="11.5" fill="#475569">需人工裁决。第三类不能省。</text>
+    <text x="345" y="523" font-size="11.5" fill="#B45309">对账文档是活笔记，不是审计报告</text>
+
+    <rect x="624" y="440" width="286" height="96" rx="8" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="642" y="464" font-size="12.5" font-weight="600" fill="#0F172A">一致意见 ≠ 正确</text>
+    <text x="642" y="485" font-size="11.5" fill="#475569">两个模型共享同一套先验，会一起错。</text>
+    <text x="642" y="503" font-size="11.5" fill="#475569">交叉评审消除随机错误，消除不了系统偏差。</text>
+    <text x="642" y="523" font-size="11.5" fill="#B45309">分歧点才是真正的设计决策点</text>
+  </g>
+</svg>

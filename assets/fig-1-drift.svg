@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 384" width="940" height="384" role="img" aria-label="双基线漂移与治理机制">
+  <defs>
+    <marker id="d1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#D97706"/>
+    </marker>
+  </defs>
+  <rect width="940" height="384" fill="#FFFFFF"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', Arial, sans-serif">
+    <text x="30" y="40" font-size="20" font-weight="700" fill="#0F172A">漂移是怎么产生的，以及怎么把它管住</text>
+    <text x="30" y="64" font-size="12.5" fill="#64748B">当两个 Agent 都拥有写权限，一致性下降是必然结果；关键是把差异变成可读的清单，而不是期待它不发生</text>
+
+    <!-- panel A -->
+    <rect x="30" y="88" width="420" height="172" rx="10" fill="#F8FAFC" stroke="#E2E8F0"/>
+    <text x="50" y="114" font-size="13" font-weight="700" fill="#0F172A">双基线</text>
+    <rect x="50" y="128" width="380" height="34" rx="6" fill="#EEF4FF" stroke="#BFD6F6"/>
+    <text x="64" y="150" font-size="12.5" fill="#1E3A8A">代码基线 — 当前可运行的实现</text>
+    <rect x="50" y="196" width="380" height="34" rx="6" fill="#FFF7F3" stroke="#F3C9B6"/>
+    <text x="64" y="218" font-size="12.5" fill="#9A3412">文档基线 — 当前确认的意图与规格</text>
+    <line x1="240" y1="168" x2="240" y2="194" stroke="#D97706" stroke-width="2" marker-end="url(#d1)" marker-start="url(#d1)"/>
+    <text x="252" y="186" font-size="11.5" font-weight="600" fill="#B45309">两者之间的差异 = 漂移</text>
+
+    <!-- panel B -->
+    <rect x="470" y="88" width="440" height="172" rx="10" fill="#FFFFFF" stroke="#E2E8F0"/>
+    <text x="490" y="114" font-size="13" font-weight="700" fill="#0F172A">每轮必须标注差异归属</text>
+    <rect x="490" y="126" width="400" height="30" rx="5" fill="#F8FAFC" stroke="#E8EDF3"/>
+    <text x="502" y="146" font-size="12" fill="#334155">① 文档领先代码 → 收紧实现，或回退文档</text>
+    <rect x="490" y="162" width="400" height="30" rx="5" fill="#F8FAFC" stroke="#E8EDF3"/>
+    <text x="502" y="182" font-size="12" fill="#334155">② 代码领先文档 → 更新文档并写明原因</text>
+    <rect x="490" y="198" width="400" height="30" rx="5" fill="#FFF7F3" stroke="#F3C9B6"/>
+    <text x="502" y="218" font-size="12" font-weight="600" fill="#9A3412">③ 两者都成立 → 交人裁决（不可省略）</text>
+
+    <!-- bottom -->
+    <rect x="30" y="282" width="880" height="80" rx="10" fill="#FFFBF5" stroke="#F6DEB8"/>
+    <text x="50" y="308" font-size="12.5" font-weight="700" fill="#92400E">处理原则</text>
+    <text x="50" y="330" font-size="12" fill="#3F3F46">· 尽量在同一轮里同时更新代码与文档；某一方有意先行时，追加一轮评审并在对账文档登记</text>
+    <text x="50" y="350" font-size="12" fill="#3F3F46">· 对账文档只做一件事：把差异显式化，让下一轮可以有意选择跟随哪一条基线 —— 它是活的协调笔记</text>
+  </g>
+</svg>

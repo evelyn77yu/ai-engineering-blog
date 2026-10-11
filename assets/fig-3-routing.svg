@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 940 424" width="940" height="424" role="img" aria-label="决策路由四分类与失败路径降级链">
+  <defs>
+    <marker id="r1" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#94A3B8"/>
+    </marker>
+  </defs>
+  <rect width="940" height="424" fill="#FFFFFF"/>
+  <g font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB', Arial, sans-serif">
+    <text x="30" y="40" font-size="20" font-weight="700" fill="#0F172A">决策路由：先把能确定的事情从模型手里拿走</text>
+    <text x="30" y="64" font-size="12.5" fill="#64748B">每一次决策先做分类，只有真正需要语义判断的那一类才进入 LLM</text>
+
+    <rect x="16" y="92" width="216" height="118" rx="9" fill="#F8FAFC" stroke="#E2E8F0"/>
+    <text x="34" y="116" font-size="13" font-weight="700" fill="#0F172A">① 脚本</text>
+    <text x="34" y="138" font-size="11.5" fill="#475569">确定性计算与数据变换</text>
+    <text x="34" y="158" font-size="11.5" fill="#475569">可重放、可对比、零推理成本</text>
+    <text x="34" y="186" font-size="11.5" font-weight="600" fill="#0F766E">命中条件明确 → 不出模型</text>
+
+    <rect x="242" y="92" width="216" height="118" rx="9" fill="#F8FAFC" stroke="#E2E8F0"/>
+    <text x="260" y="116" font-size="13" font-weight="700" fill="#0F172A">② 规则</text>
+    <text x="260" y="138" font-size="11.5" fill="#475569">可判定的约束与合规检查</text>
+    <text x="260" y="158" font-size="11.5" fill="#475569">判定标准能写成布尔表达式</text>
+    <text x="260" y="186" font-size="11.5" font-weight="600" fill="#0F766E">拦在模型之前，而不是之后</text>
+
+    <rect x="468" y="92" width="216" height="118" rx="9" fill="#EEF4FF" stroke="#BFD6F6"/>
+    <text x="486" y="116" font-size="13" font-weight="700" fill="#0F172A">③ LLM</text>
+    <text x="486" y="138" font-size="11.5" fill="#475569">语义理解、规划与表达</text>
+    <text x="486" y="158" font-size="11.5" fill="#475569">输出结构受 Schema 约束</text>
+    <text x="486" y="186" font-size="11.5" font-weight="600" fill="#1D4ED8">唯一允许有不确定性的层</text>
+
+    <rect x="694" y="92" width="230" height="118" rx="9" fill="#FFF7F3" stroke="#F3C9B6"/>
+    <text x="712" y="116" font-size="13" font-weight="700" fill="#0F172A">④ 人工</text>
+    <text x="712" y="138" font-size="11.5" fill="#475569">价值判断、责任归属与例外</text>
+    <text x="712" y="158" font-size="11.5" fill="#475569">无法用标准判定的分歧</text>
+    <text x="712" y="186" font-size="11.5" font-weight="600" fill="#B45309">不做兜底以外的重复劳动</text>
+
+    <text x="30" y="246" font-size="13" font-weight="700" fill="#0F172A">失败路径：异常不允许被静默吞掉</text>
+    <rect x="16" y="260" width="196" height="66" rx="8" fill="#FFFFFF" stroke="#DBE3EC"/>
+    <text x="114" y="286" font-size="12" font-weight="600" fill="#0F172A" text-anchor="middle">有限重试</text>
+    <text x="114" y="306" font-size="11" fill="#64748B" text-anchor="middle">指数退避，次数有上限</text>
+
+    <rect x="232" y="260" width="196" height="66" rx="8" fill="#FFFFFF" stroke="#DBE3EC"/>
+    <text x="330" y="286" font-size="12" font-weight="600" fill="#0F172A" text-anchor="middle">备用通道</text>
+    <text x="330" y="306" font-size="11" fill="#64748B" text-anchor="middle">换工具或换模型能力</text>
+
+    <rect x="448" y="260" width="196" height="66" rx="8" fill="#FFFFFF" stroke="#DBE3EC"/>
+    <text x="546" y="286" font-size="12" font-weight="600" fill="#0F172A" text-anchor="middle">降级输出</text>
+    <text x="546" y="306" font-size="11" fill="#64748B" text-anchor="middle">返回部分结果并显式标注</text>
+
+    <rect x="664" y="260" width="260" height="66" rx="8" fill="#FFF7F3" stroke="#F3C9B6"/>
+    <text x="794" y="286" font-size="12" font-weight="600" fill="#0F172A" text-anchor="middle">人工兜底</text>
+    <text x="794" y="306" font-size="11" fill="#A16207" text-anchor="middle">进入待办队列，附完整执行记录</text>
+
+    <line x1="214" y1="293" x2="228" y2="293" stroke="#94A3B8" stroke-width="2" marker-end="url(#r1)"/>
+    <line x1="430" y1="293" x2="444" y2="293" stroke="#94A3B8" stroke-width="2" marker-end="url(#r1)"/>
+    <line x1="646" y1="293" x2="660" y2="293" stroke="#94A3B8" stroke-width="2" marker-end="url(#r1)"/>
+
+    <rect x="16" y="348" width="908" height="58" rx="9" fill="#FFFBF5" stroke="#F6DEB8"/>
+    <text x="36" y="372" font-size="12" fill="#92400E">降级链的意义不是"尽量不出错"，而是<b>出错时在正确的一层被处理，并留下可归因的记录</b>：重试说明工具抖动，</text>
+    <text x="36" y="392" font-size="12" fill="#92400E">降级说明能力缺口，人工兜底说明判定标准缺失 —— 三者对应的改进方向完全不同。</text>
+  </g>
+</svg>

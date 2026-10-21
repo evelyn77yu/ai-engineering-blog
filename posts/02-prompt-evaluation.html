@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>提示策略对照评测 · AI Engineering Notes</title>
+<meta name="description" content="同一模型、40 道推理题、四种提示策略、320 次调用：变量控制、严格/宽松双轨评分、错误归因与免 API Key 的离线验证。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="提示策略对照评测 · AI Engineering Notes">
+<meta property="og:description" content="同一模型、40 道推理题、四种提示策略、320 次调用：变量控制、严格/宽松双轨评分、错误归因与免 API Key 的离线验证。">
+<meta property="og:url" content="https://evelyn77yu.github.io/ai-engineering-blog/posts/02-prompt-evaluation.html">
+<meta property="og:image" content="https://evelyn77yu.github.io/ai-engineering-blog/assets/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23171925'/%3E%3Ctext x='32' y='41' font-family='monospace' font-size='26' font-weight='700' fill='%23fde68a' text-anchor='middle'%3EYD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true"><defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk"/></marker>
+  <marker id="ar-tool" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-tool"/></marker>
+  <marker id="ar-human" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-human"/></marker>
+</defs></svg>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-mark">YD</span><span class="brand-text">AI Engineering Notes</span></a>
+    <nav class="nav-links">
+      <a href="../index.html#works">作品</a>
+      <a href="../index.html#principles">判断原则</a>
+      <a href="../index.html#map">能力地图</a>
+      <a href="https://evelyn77yu.github.io">主页 ↗</a>
+    </nav>
+  </div>
+</header>
+
+<section class="post-hero">
+  <div class="wrap">
+    <div class="crumbs"><a href="../index.html">作品集</a> / 02 · LLM 评测</div>
+    <h1>提示策略对照评测的复盘：变量控制、双轨评分与可验证性</h1>
+    <p class="lede">改了提示词之后，系统到底是变好了还是变差了？没有对照基线时，这个问题只能凭感觉回答。为了能回答它，我把一次评测从头到尾完整做了一遍：同一个模型，40 道推理题，四种提示策略，320 次调用，全程留痕。这篇不讨论哪种策略最好，讨论的是怎样让一次对比站得住。</p>
+    <p class="postinfo">阅读约 6 分钟 · 更新于 2026 年 10 月 21 日</p>
+    <dl class="meta">
+      <div><dt>领域</dt><dd>LLM 评测 · 提示工程</dd></div>
+      <div><dt>我的角色</dt><dd>独立完成：设计 · 实现 · 分析</dd></div>
+      <div><dt>规模</dt><dd>40 题 · 4 策略 · 320 次调用</dd></div>
+      <div><dt>关键词</dt><dd>控制变量 · 双轨评分 · 离线验证</dd></div>
+    </dl>
+  </div>
+</section>
+
+<div class="layout">
+<article class="prose">
+
+  <section class="pitch"><span class="label">30 秒版本</span><p>我在同一个模型上，用 40 道推理题对比了四种提示策略，一共 320 次调用，全程留痕。重点不是给策略排名，而是让对比站得住：先固定变量，再用严格和宽松两套口径评分，逐题做错误归因。分项结果一度显示 CoT 在逻辑题上更差，核对后发现 8 处判错里有 7 处只是冠词差异。最后我写了不需要 API Key 的离线验证脚本，配合 CI 和哈希清单，让别人可以独立复核结论。</p></section>
+
+  <div class="tldr">
+    <div><h4>背景</h4><p>一个课程项目。目标不是给提示策略排名，而是建立一套“改了之后能说清好坏”的评测流程。</p></div>
+    <div><h4>我做了什么</h4><p>固定变量，统一答案提取，设计严格与宽松两套评分口径，逐题做错误归因；另外写了一个免 API Key 的离线验证脚本，配合 CI 质量门禁和哈希清单。</p></div>
+    <div><h4>关键判断</h4><p>初看结论是“逻辑排序题上 CoT 反而更差”。逐条核对后发现，8 处判错里有 7 处只是冠词或括号的差别，这个结论主要是评分口径造成的假象。</p></div>
+    <div><h4>结果</h4><p>Few-shot CoT 的严格准确率最高，为 95%。但更有价值的产出是一套可以复用、别人不花钱就能验证的评测流程。</p></div>
+  </div>
+
+  <h2 id="result"><span class="no">01</span>先给结果</h2>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>提示策略</th><th>做法</th><th class="num">严格准确率</th><th class="num">宽松准确率</th><th class="num">API 调用</th></tr></thead>
+      <tbody>
+        <tr><td>Direct</td><td>直接给答案</td><td class="num">92.5%（37/40）</td><td class="num">97.5%</td><td class="num">40</td></tr>
+        <tr><td>Zero-shot CoT</td><td>要求逐步推理</td><td class="num">90.0%（36/40）</td><td class="num">97.5%</td><td class="num">40</td></tr>
+        <tr class="hl"><td>Few-shot CoT</td><td>先给三个已解示例</td><td class="num"><strong>95.0%（38/40）</strong></td><td class="num">100%</td><td class="num">40</td></tr>
+        <tr><td>Self-consistency</td><td>五次推理后投票</td><td class="num">92.5%（37/40）</td><td class="num">100%</td><td class="num">200</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 250" role="img" aria-label="四种策略在严格与宽松口径下的准确率：宽松口径普遍高出 5 到 7.5 个百分点，策略之间的差距在宽松口径下几乎消失">
+        <circle cx="236" cy="24" r="6" class="fill-llm"/><text x="248" y="28" class="tm">严格口径（主指标）</text>
+        <circle cx="400" cy="24" r="5" fill="none" class="ln-tool" stroke-width="2.5"/><text x="412" y="28" class="tm">宽松口径（辅助参考）</text>
+        <g class="grid">
+          <line x1="230" y1="44" x2="230" y2="212"/><line x1="386.7" y1="44" x2="386.7" y2="212"/><line x1="543.3" y1="44" x2="543.3" y2="212"/><line x1="700" y1="44" x2="700" y2="212"/>
+        </g>
+        <g class="t" text-anchor="end" style="font-size:12.5px">
+          <text x="212" y="72">Direct</text><text x="212" y="112">Zero-shot CoT</text><text x="212" y="152">Few-shot CoT</text><text x="212" y="192">Self-consistency</text>
+        </g>
+        <line x1="465" y1="68" x2="621.7" y2="68" class="ln" stroke-width="3"/>
+        <circle cx="465" cy="68" r="7" class="fill-llm"/><circle cx="621.7" cy="68" r="6" fill="var(--surface)" class="ln-tool" stroke-width="2.5"/>
+        <line x1="386.7" y1="108" x2="621.7" y2="108" class="ln" stroke-width="3"/>
+        <circle cx="386.7" cy="108" r="7" class="fill-llm"/><circle cx="621.7" cy="108" r="6" fill="var(--surface)" class="ln-tool" stroke-width="2.5"/>
+        <line x1="543.3" y1="148" x2="700" y2="148" class="ln" stroke-width="3"/>
+        <circle cx="543.3" cy="148" r="7" class="fill-llm"/><circle cx="700" cy="148" r="6" fill="var(--surface)" class="ln-tool" stroke-width="2.5"/>
+        <line x1="465" y1="188" x2="700" y2="188" class="ln" stroke-width="3"/>
+        <circle cx="465" cy="188" r="7" class="fill-llm"/><circle cx="700" cy="188" r="6" fill="var(--surface)" class="ln-tool" stroke-width="2.5"/>
+        <g class="ts" text-anchor="middle">
+          <text x="465" y="88">92.5</text><text x="386.7" y="128">90.0</text><text x="543.3" y="168">95.0</text><text x="465" y="208">92.5</text>
+        </g>
+        <text x="212" y="207" class="ts" text-anchor="end">×5 调用</text>
+        <g class="ts tmono" text-anchor="middle"><text x="230" y="232">85%</text><text x="386.7" y="232">90%</text><text x="543.3" y="232">95%</text><text x="700" y="232">100%</text></g>
+      </svg>
+    </div>
+    <figcaption><b>图 1　同一批回答，两种口径。</b>每一行中，实心点是严格口径，空心点是宽松口径，两点之间的线段就是“只因格式被判错”的部分。到了宽松口径下，策略之间的差距几乎消失。</figcaption>
+  </figure>
+  <p>总体只差 5 个百分点，而且 40 道题撑不起“哪种策略更好”这种结论，后面会专门讲原因。这次评测里比数字更值得写的，是下面几个工程动作。</p>
+
+  <h2 id="control"><span class="no">02</span>先解决“对比是否成立”</h2>
+  <p>评测里最常见的错误不是算错分，而是变量没有控制住，对比本身就不成立。所以在跑数据之前，我先把固定什么、改变什么全部写了下来：</p>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>项目</th><th>设置</th><th>性质</th></tr></thead>
+      <tbody>
+        <tr><td>模型与接口</td><td>同一个模型（Kimi-K2.5），同一个接口</td><td><span class="pill">固定</span></td></tr>
+        <tr><td>题目</td><td>40 题，四类任务各 10 题：算术应用、末字母拼接、字母计数、逻辑排序</td><td><span class="pill">固定</span></td></tr>
+        <tr><td>答案提取与评分</td><td>四种策略共用同一套规则</td><td><span class="pill">固定</span></td></tr>
+        <tr><td>提示方式</td><td>Direct / Zero-shot CoT / Few-shot CoT / Self-consistency</td><td><span class="pill acc">被测变量</span></td></tr>
+        <tr><td>解码设置</td><td>前三种用温度 0 单次贪心解码；Self-consistency 用温度 0.7，每题采样 5 次后投票</td><td><span class="pill acc">必须声明的差异</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>四类任务是有意挑得分散的：算术偏数值计算，末字母和字母计数是字符串操作，逻辑排序是顺序关系推理。任务类型足够分散，才能区分一个策略是“只对某一类有效”还是“整体有效”。</p>
+  <div class="callout"><span class="label">判断</span><p>四种策略的温度和调用次数并不相同，Self-consistency 多付出了五倍调用，所以这不是一次等成本比较。我把这一点主动写进了报告。<strong>评测报告如果不主动说明自己的口径，审阅者得出的结论会是“作者没意识到”，而不是“作者有意这样选”。</strong></p></div>
+
+  <h2 id="pipeline"><span class="no">03</span>评测流水线</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 250" role="img" aria-label="评测流水线：数据集、提示构造、模型调用、答案提取、双轨评分、投票汇总六个阶段，下方是贯穿全程的证据链">
+        <rect x="5" y="20" width="110" height="74" rx="10" class="bx"/>
+        <text x="60" y="48" class="tb" text-anchor="middle">数据集</text><text x="60" y="68" class="tm" text-anchor="middle">40 题 · 4 类</text><text x="60" y="84" class="ts" text-anchor="middle">3 处标签修正</text>
+        <rect x="133" y="20" width="110" height="74" rx="10" class="bx"/>
+        <text x="188" y="48" class="tb" text-anchor="middle">提示构造</text><text x="188" y="68" class="tm" text-anchor="middle">4 种策略</text><text x="188" y="84" class="ts" text-anchor="middle">模板固定</text>
+        <rect x="261" y="20" width="110" height="74" rx="10" class="llm"/>
+        <text x="316" y="48" class="tb" text-anchor="middle">模型调用</text><text x="316" y="68" class="tm" text-anchor="middle">320 次请求</text><text x="316" y="84" class="ts" text-anchor="middle">限流退避 · 断点续跑</text>
+        <rect x="389" y="20" width="110" height="74" rx="10" class="tool"/>
+        <text x="444" y="48" class="tb" text-anchor="middle">答案提取</text><text x="444" y="68" class="tm" text-anchor="middle">统一规则</text><text x="444" y="84" class="ts" text-anchor="middle">末个标记 → 末行</text>
+        <rect x="517" y="20" width="110" height="74" rx="10" class="tool"/>
+        <text x="572" y="48" class="tb" text-anchor="middle">双轨评分</text><text x="572" y="68" class="tm" text-anchor="middle">严格 · 宽松</text><text x="572" y="84" class="ts" text-anchor="middle">宽松只管格式</text>
+        <rect x="645" y="20" width="110" height="74" rx="10" class="bx"/>
+        <text x="700" y="48" class="tb" text-anchor="middle">投票汇总</text><text x="700" y="68" class="tm" text-anchor="middle">5 次采样多数</text><text x="700" y="84" class="ts" text-anchor="middle">分类别统计</text>
+        <path d="M116 57 L131 57" class="ln" marker-end="url(#ar)"/><path d="M244 57 L259 57" class="ln" marker-end="url(#ar)"/><path d="M372 57 L387 57" class="ln" marker-end="url(#ar)"/><path d="M500 57 L515 57" class="ln" marker-end="url(#ar)"/><path d="M628 57 L643 57" class="ln" marker-end="url(#ar)"/>
+
+        <rect x="5" y="140" width="750" height="96" rx="12" class="zone"/>
+        <text x="530" y="160" class="ts" text-anchor="middle">证据链 · 贯穿全程</text>
+        <rect x="20" y="172" width="168" height="48" rx="8" class="tool"/>
+        <text x="104" y="193" class="t" style="font-size:12.5px" text-anchor="middle">原始回答全部归档</text><text x="104" y="210" class="ts" text-anchor="middle">160 条预测 + 200 条采样</text>
+        <rect x="204" y="172" width="168" height="48" rx="8" class="tool"/>
+        <text x="288" y="193" class="t" style="font-size:12.5px" text-anchor="middle">重跑不覆盖</text><text x="288" y="210" class="ts" text-anchor="middle">写入独立时间戳目录</text>
+        <rect x="388" y="172" width="168" height="48" rx="8" class="tool"/>
+        <text x="472" y="193" class="t" style="font-size:12.5px" text-anchor="middle">来源与哈希清单</text><text x="472" y="210" class="ts" text-anchor="middle">大小 · SHA-256</text>
+        <rect x="572" y="172" width="168" height="48" rx="8" class="human"/>
+        <text x="656" y="193" class="t" style="font-size:12.5px" text-anchor="middle">离线验证 + CI</text><text x="656" y="210" class="ts" text-anchor="middle">别人无需 API Key</text>
+        <path d="M316 96 L288 170" class="ln-tool dash" marker-end="url(#ar-tool)"/>
+        <path d="M60 96 L104 170" class="ln-tool dash" marker-end="url(#ar-tool)"/>
+        <path d="M700 96 L656 170" class="ln-human dash" marker-end="url(#ar-human)"/>
+      </svg>
+    </div>
+    <figcaption><b>图 2　评测流水线与证据链。</b>上面一行是数据怎么流动，下面一行是每一步留下了什么证据。确定性的环节（提取、评分）用绿色标出，它们不依赖模型，可以被逐条重放。</figcaption>
+  </figure>
+
+  <h2 id="scoring"><span class="no">04</span>双轨评分：格式失败不等于推理失败</h2>
+  <p>答案提取的规则必须写得很具体：优先取最后一个 <code>Final answer:</code> 之后的内容，没有的话取最后一个非空行，再去掉标点。因为模型的输出格式并不稳定，同一道题可能输出 <code>30</code>、<code>Final answer: 30</code> 或 <code>30 dollars</code>。没有统一规则的话，评分里会混进大量和推理能力无关的假失败。</p>
+  <div class="cards">
+    <div class="card llm"><span class="tag">严格口径 · 主指标</span><h4>转小写、合并空白、去掉末尾句号</h4><p>防止分数虚高。比如标准答案是 <code>30</code>，Direct 输出了 <code>30 dollars</code>，严格口径下判错。</p></div>
+    <div class="card tool"><span class="tag">宽松口径 · 辅助参考</span><h4>额外处理单位、答案前缀、括号说明和冠词</h4><p>用来识别哪些失败和推理无关。但它的边界是写死的：只处理格式差异，不处理语义差异。</p></div>
+  </div>
+  <p>宽松规则不能做成万能兜底。比如 <code>The museum opens first</code> 不会被自动改写成 <code>museum</code>。这条线划清楚了，就不会出现“为了让结果好看而放宽标准”的情况。</p>
+
+  <h2 id="breakdown"><span class="no">05</span>分项结果推翻了总体结论</h2>
+  <p>总体上只差 5 个百分点，但拆到每个类别里，差异就大得多了：</p>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>严格准确率</th><th class="num">算术应用</th><th class="num">末字母拼接</th><th class="num">字母计数</th><th class="num">逻辑排序</th></tr></thead>
+      <tbody>
+        <tr><td>Direct</td><td class="num">90%</td><td class="num">100%</td><td class="num">90%</td><td class="num hl">90%</td></tr>
+        <tr><td>Zero-shot CoT</td><td class="num">90%</td><td class="num">100%</td><td class="num">100%</td><td class="num hl"><strong>70%</strong></td></tr>
+        <tr><td>Few-shot CoT</td><td class="num">100%</td><td class="num">100%</td><td class="num">100%</td><td class="num hl">80%</td></tr>
+        <tr><td>Self-consistency</td><td class="num">90%</td><td class="num">100%</td><td class="num">100%</td><td class="num hl">80%</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>策略之间的差异几乎全部集中在逻辑排序这一类。初看的结论是“CoT 在逻辑排序上反而更差”，但这个结论要先排除评分口径的影响。我逐条核对了这一类所有被判错的回答：</p>
+
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 236" role="img" aria-label="逻辑排序类在严格口径下判错 8 次，其中 7 次只是冠词或括号差异，只有 1 次是真实推理错误">
+        <text x="20" y="26" class="tb">逻辑排序 · 严格口径判错 8 次</text>
+        <g class="t" style="font-size:12.5px">
+          <text x="20" y="68">Direct</text><text x="20" y="108">Zero-shot CoT</text><text x="20" y="148">Few-shot CoT</text><text x="20" y="188">Self-consistency</text>
+        </g>
+        <circle cx="180" cy="64" r="9" fill="none" class="ln-risk" stroke-width="2"/>
+        <circle cx="180" cy="104" r="9" fill="none" class="ln-risk" stroke-width="2"/><circle cx="206" cy="104" r="9" fill="none" class="ln-risk" stroke-width="2"/><circle cx="232" cy="104" r="9" class="fill-risk"/>
+        <circle cx="180" cy="144" r="9" fill="none" class="ln-risk" stroke-width="2"/><circle cx="206" cy="144" r="9" fill="none" class="ln-risk" stroke-width="2"/>
+        <circle cx="180" cy="184" r="9" fill="none" class="ln-risk" stroke-width="2"/><circle cx="206" cy="184" r="9" fill="none" class="ln-risk" stroke-width="2"/>
+        <circle cx="26" cy="219" r="6" fill="none" class="ln-risk" stroke-width="2"/><text x="38" y="223" class="ts">只差冠词或括号 · 7</text>
+        <circle cx="168" cy="219" r="6" class="fill-risk"/><text x="180" y="223" class="ts">真实推理错误 · 1</text>
+
+        <line x1="300" y1="20" x2="300" y2="226" class="grid"/>
+        <text x="330" y="26" class="tm">标准答案</text><text x="520" y="26" class="tm">模型输出（被严格口径判错）</text>
+        <rect x="324" y="46" width="170" height="34" rx="8" class="bx2"/><text x="338" y="68" class="t tmono" style="font-size:12.5px">blue book</text>
+        <rect x="514" y="46" width="226" height="34" rx="8" class="bx"/><text x="528" y="68" class="t tmono" style="font-size:12.5px"><tspan class="c-risk">the </tspan>blue book</text>
+        <rect x="324" y="96" width="170" height="34" rx="8" class="bx2"/><text x="338" y="118" class="t tmono" style="font-size:12.5px">museum</text>
+        <rect x="514" y="96" width="226" height="34" rx="8" class="bx"/><text x="528" y="118" class="t tmono" style="font-size:12.5px"><tspan class="c-risk">the </tspan>museum</text>
+        <rect x="324" y="146" width="170" height="34" rx="8" class="bx2"/><text x="338" y="168" class="t tmono" style="font-size:12.5px">the table</text>
+        <rect x="514" y="146" width="226" height="34" rx="8" class="bx"/><text x="528" y="168" class="t tmono" style="font-size:12.5px">the table<tspan class="c-risk"> (and the lamp)</tspan></text>
+        <text x="330" y="212" class="tm">换到宽松口径后，这 7 处全部判对，四种策略收窄到 90%–100%</text>
+      </svg>
+    </div>
+    <figcaption><b>图 3　“CoT 更差”主要是评分口径造成的假象。</b>逻辑排序题的答案是短语，模型很喜欢加冠词或补充说明。8 次判错里只有 1 次是真正推理错了。</figcaption>
+  </figure>
+  <p>所以更准确的表述是：<strong>逻辑排序上严格口径的差距，主要来自答案的表述差异，而不是推理能力的差异。</strong>这也是双轨评分必须同时看的原因：严格口径防止分数虚高，宽松口径用来识别哪些失败与推理无关，只看其中一个都会得出错误结论。</p>
+  <p>关于多数投票，还有一个反例。逻辑排序题上，Self-consistency 的五次采样大多非常集中，10 题里有 7 题五次答案完全一致。<strong>但答案集中不等于答案正确</strong>：有一题五次回答一模一样，答案仍然是错的。多数投票能压住随机误差，压不住系统性偏差，因为五次采样共享同一套先验，错也会一起错。</p>
+
+  <h2 id="labels"><span class="no">06</span>三处标签修正：改评测集要留痕</h2>
+  <p>评测进行到一半，我发现数据集本身有错：三道末字母拼接题的标准答案标错了（例如 <code>pak</code> 应该是 <code>plk</code>）。不修正的话，模型答对了也会被判错。</p>
+  <p>我没有直接改掉，而是把修正前后的完整差异单独存档，并在报告中说明修正经过了确认。<strong>修改评测集这个动作本身就可以被用来美化结果</strong>，唯一的自证方式是把改动过程完整留下来，让别人自己判断是否合理。修正之后，末字母拼接四种策略全部是 100%。这反而暴露出这批题太简单、没有区分度，属于失效的评测题。</p>
+
+  <h2 id="cost"><span class="no">07</span>成本应该是核心指标</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 262" role="img" aria-label="调用次数与严格准确率：Self-consistency 用 200 次调用得到 92.5%，与只用 40 次调用的 Direct 持平">
+        <g class="grid">
+          <line x1="80" y1="30" x2="720" y2="30"/><line x1="80" y1="90" x2="720" y2="90"/><line x1="80" y1="150" x2="720" y2="150"/><line x1="80" y1="210" x2="720" y2="210"/>
+        </g>
+        <g class="ts tmono" text-anchor="end"><text x="70" y="34">100%</text><text x="70" y="94">95%</text><text x="70" y="154">90%</text><text x="70" y="214">85%</text></g>
+        <g class="ts tmono" text-anchor="middle"><text x="80" y="232">0</text><text x="196.4" y="232">40</text><text x="371" y="232">100</text><text x="661.8" y="232">200</text></g>
+        <text x="400" y="254" class="ts" text-anchor="middle">API 调用次数</text>
+        <line x1="300" y1="120" x2="648" y2="120" class="ln-human dash"/>
+        <text x="474" y="112" class="tm c-human" text-anchor="middle">同样 92.5%，调用多 5 倍</text>
+        <circle cx="196.4" cy="90" r="8" class="fill-llm"/><text x="210" y="94" class="t" style="font-size:12.5px">Few-shot CoT · 95%</text>
+        <circle cx="196.4" cy="120" r="8" class="fill-llm"/><text x="210" y="124" class="t" style="font-size:12.5px">Direct · 92.5%</text>
+        <circle cx="196.4" cy="150" r="8" class="fill-llm"/><text x="210" y="154" class="t" style="font-size:12.5px">Zero-shot CoT · 90%</text>
+        <circle cx="661.8" cy="120" r="8" class="fill-human"/><text x="661.8" y="148" class="t" style="font-size:12.5px" text-anchor="middle">Self-consistency · 92.5%</text>
+      </svg>
+    </div>
+    <figcaption><b>图 4　把调用次数放上横轴，结论就变了。</b>Self-consistency 在逻辑排序上多答对 1 题，代价是 5 倍调用，整体严格准确率和 Direct 持平。工程决策真正需要的是“每次调用换来多少准确率”。</figcaption>
+  </figure>
+  <p>做 LLM 应用时，采样投票这类方法往往被当作“免费提升”。在这次实验里它并不免费：<strong>采样投票的收益要按任务类别拆开算</strong>，只在少数推理类任务上值得这个价钱。如果重做，我会把成本作为核心指标放进主表。</p>
+
+  <h2 id="verify"><span class="no">08</span>让结论可以被别人验证</h2>
+  <p>别人如果无法验证一次评测，它的结论价值就有限。下面四个设计成本都不高：</p>
+  <div class="cards">
+    <div class="card tool"><span class="tag">离线验证</span><h4>不需要 API Key 的验证脚本</h4><p>不调用任何 API，只核对归档结果的内部一致性：文件哈希、题目覆盖、答案提取、评分标记、投票与汇总是否自洽。没有人会为了验证你的结论自费重跑一遍，所以应该让别人只需要检查数据处理逻辑。</p></div>
+    <div class="card tool"><span class="tag">CI 质量门禁</span><h4>每次提交自动跑同一个脚本</h4><p>评测项目里，整理文件的时候最容易动到结果文件本身。CI 用来确认归档结果没有在整理过程中被意外改坏。</p></div>
+    <div class="card tool"><span class="tag">来源清单</span><h4>重跑不覆盖，来源可核对</h4><p>重跑结果写入独立的时间戳目录；每个文件的来源、大小和 SHA-256 都记入清单。“整理时没有改写任何数据”这类声明必须能被检验，口头保证不算证据。</p></div>
+    <div class="card human"><span class="tag">失败恢复</span><h4>先设计好失败后怎么继续</h4><p>320 次请求中途中断是常事。脚本支持只重跑失败的请求，并配合限流退避。任何会产生费用的长任务，都应该先想清楚失败之后怎么接着跑。</p></div>
+  </div>
+
+  <h2 id="limits"><span class="no">09</span>局限与重做清单</h2>
+  <p>40 题的规模下，每一题对应总体准确率 2.5 个百分点、分项准确率 10 个百分点；没有做显著性检验，95% 和 92.5% 之间只差一题；策略之间的温度和调用次数不同，不构成等成本比较；依赖版本锁定和随机种子也没有完整记录。</p>
+  <div class="callout risk"><span class="label">边界</span><p>方法论可以复用，但这批数据上得出的具体结论不能迁移到别处。</p></div>
+  <p>如果重做，按优先级排：</p>
+  <ol>
+    <li>样本扩大到 200 题以上，并做显著性检验；</li>
+    <li>为 Self-consistency 设一个等成本的对照组；</li>
+    <li>剔除或加难没有区分度的类别；</li>
+    <li>固定随机种子，锁定依赖版本；</li>
+    <li>把“准确率 ÷ 调用次数”作为主表里的核心指标。</li>
+  </ol>
+
+  <h2 id="summary"><span class="no">10</span>小结</h2>
+  <ol class="takeaways">
+    <li>评测的第一关是控制变量，而不是算分。变量没控制住，数字越精确越误导人。</li>
+    <li>严格和宽松两种口径要同时看：一个防止分数虚高，一个识别与推理无关的失败。</li>
+    <li>答案高度一致不代表答案正确。投票能抑制随机误差，抑制不了共享先验带来的系统性偏差。</li>
+    <li>让结论可以被验证。离线脚本、CI 和哈希清单的成本都不高，却能把结论从“我说的”变成“你能查的”。</li>
+    <li>主动写下局限。没写清楚的弱点，审阅者一定会发现；自己写清楚是严谨，被别人指出来就是硬伤。</li>
+  </ol>
+
+  <div class="skillbar"><b>这个作品体现的能力</b>
+    <div class="pills"><span class="pill acc">评测设计</span><span class="pill acc">统计口径与错误归因</span><span class="pill">提示工程</span><span class="pill">LLM 调用成本</span><span class="pill">可复现性工程</span><span class="pill">CI 质量门禁</span></div>
+  </div>
+
+  <p class="note">本文是个人课程项目的工程复盘。数据集来自课程材料，未在此公开；文中只引用汇总结果和少量示例答案。</p>
+
+  <nav class="postnav">
+    <a href="01-dual-agent-workflow.html"><small>← 上一篇</small><span>双 Agent 交替开发</span></a>
+    <a class="next" href="03-verification-agent-framework.html"><small>下一篇 →</small><span>受约束的 Agent Harness 设计</span></a>
+  </nav>
+</article>
+
+<aside class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#result">先给结果</a></li>
+    <li><a href="#control">对比是否成立</a></li>
+    <li><a href="#pipeline">评测流水线</a></li>
+    <li><a href="#scoring">双轨评分</a></li>
+    <li><a href="#breakdown">分项推翻总体</a></li>
+    <li><a href="#labels">标签修正留痕</a></li>
+    <li><a href="#cost">成本是核心指标</a></li>
+    <li><a href="#verify">可验证性设计</a></li>
+    <li><a href="#limits">局限与重做</a></li>
+    <li><a href="#summary">小结</a></li>
+  </ol>
+</aside>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <span>© 2026 Yu Dian · 文章与插图以 CC BY 4.0 提供</span>
+    <span><a href="https://github.com/evelyn77yu">GitHub</a> · <a href="https://evelyn77yu.github.io">主页</a></span>
+  </div>
+</footer>
+</body>
+</html>

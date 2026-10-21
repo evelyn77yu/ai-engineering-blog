@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>双 Agent 交替开发 · AI Engineering Notes</title>
+<meta name="description" content="一个可视化硬件编程工具的前端由 Claude 与 Codex 交替开发 21 轮：规则文件、滚动评审、漂移治理，以及 AI 助手的上下文与成本设计。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="双 Agent 交替开发 · AI Engineering Notes">
+<meta property="og:description" content="一个可视化硬件编程工具的前端由 Claude 与 Codex 交替开发 21 轮：规则文件、滚动评审、漂移治理，以及 AI 助手的上下文与成本设计。">
+<meta property="og:url" content="https://evelyn77yu.github.io/ai-engineering-blog/posts/01-dual-agent-workflow.html">
+<meta property="og:image" content="https://evelyn77yu.github.io/ai-engineering-blog/assets/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23171925'/%3E%3Ctext x='32' y='41' font-family='monospace' font-size='26' font-weight='700' fill='%23fde68a' text-anchor='middle'%3EYD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true"><defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk"/></marker>
+  <marker id="ar-llm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-llm"/></marker>
+  <marker id="ar-alt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-alt"/></marker>
+  <marker id="ar-human" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-human"/></marker>
+  <marker id="ar-risk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-risk"/></marker>
+</defs></svg>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-mark">YD</span><span class="brand-text">AI Engineering Notes</span></a>
+    <nav class="nav-links">
+      <a href="../index.html#works">作品</a>
+      <a href="../index.html#principles">判断原则</a>
+      <a href="../index.html#map">能力地图</a>
+      <a href="https://evelyn77yu.github.io">主页 ↗</a>
+    </nav>
+  </div>
+</header>
+
+<section class="post-hero">
+  <div class="wrap">
+    <div class="crumbs"><a href="../index.html">作品集</a> / 01 · AI 协作开发</div>
+    <h1>双 Agent 交替开发：规则文件、滚动评审与漂移治理</h1>
+    <p class="lede">一个可视化硬件编程工具的前端，从搭框架到部署上线，全部由 Claude 和 Codex 两个 AI 交替完成。我负责定义产品、设计两者协作的规则，并在每次合并前做最终决定。前后一共 21 轮，这篇复盘讲这套流程最后稳定成什么样，以及它在哪些地方失效过。</p>
+    <p class="postinfo">阅读约 8 分钟 · 更新于 2026 年 10 月 21 日</p>
+    <dl class="meta">
+      <div><dt>领域</dt><dd>AI 辅助开发 · 前端产品</dd></div>
+      <div><dt>我的角色</dt><dd>产品定义 · 流程设计 · 合并把关</dd></div>
+      <div><dt>规模</dt><dd>6 层模块 · 21 轮评审</dd></div>
+      <div><dt>关键词</dt><dd>规则文件 · 对抗评审 · 上下文成本</dd></div>
+    </dl>
+  </div>
+</section>
+
+<div class="layout">
+<article class="prose">
+
+  <section class="pitch"><span class="label">30 秒版本</span><p>我用 Claude 和 Codex 两个 AI 交替开发了一个可视化硬件编程工具，从搭框架到部署一共 21 轮。我负责定义产品、设计两者的协作规则，并在每次合并前把关。做法有三点：约定写进能被机械检查的规则文件；每轮针对 diff 做交叉评审，用固定格式记录；两个 AI 都能改代码和文档之后，单独做漂移对账，把分歧交给人判断。最大的收获是：两个模型意见一致，不代表它们是对的，最终决定权必须留给人。</p></section>
+
+  <div class="tldr">
+    <div><h4>背景</h4><p>面向模块化传感器节点的积木式编程工具：编辑器生成 Arduino 代码，配实时拓扑图，以及一个能看到当前工作区的 AI 助手。</p></div>
+    <div><h4>我做了什么</h4><p>设计了两份规则文件、一份单文件滚动评审日志和一套漂移对账机制。我自己担任需求方和合并前的最终决策人，前后推进了 21 轮评审。</p></div>
+    <div><h4>关键判断</h4><p>规则必须能被机械检查；评审的对象是 diff，而不是代码快照；两个模型意见一致，不代表它们是对的。</p></div>
+    <div><h4>结果</h4><p>产品完成部署。流程沉淀成一套可以直接照搬的三文件模板，同时暴露出四个“规则文件自己腐化”的问题。</p></div>
+  </div>
+
+  <h2 id="product"><span class="no">01</span>先看产品：一个硬件编排编辑器</h2>
+  <p>这是一个浏览器里的单页应用，用户可以用拼积木的方式，给一组通过串口连接的传感器节点编写行为程序。界面分三块：左侧是积木编辑器，中间是实时拓扑，右下角是 AI 助手。AI 助手回答问题时能看到当前的模式、在线节点、LED 状态和程序结构，所以它更像一个懂这个工作区的助教，而不是通用聊天机器人。</p>
+
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 392" role="img" aria-label="产品界面示意：左侧积木编辑器，右侧实时拓扑，右下角悬浮的 AI 助手">
+        <rect x="10" y="10" width="740" height="372" rx="12" class="bx"/>
+        <line x1="10" y1="54" x2="750" y2="54" class="grid"/>
+        <circle cx="32" cy="32" r="5" class="fill-line"/><circle cx="48" cy="32" r="5" class="fill-line"/><circle cx="64" cy="32" r="5" class="fill-line"/>
+        <rect x="300" y="19" width="174" height="26" rx="13" class="bx2"/>
+        <rect x="356" y="22" width="62" height="20" rx="10" class="human"/>
+        <text x="328" y="36" class="ts" text-anchor="middle">AI</text>
+        <text x="387" y="36" class="t" style="font-size:11px" text-anchor="middle">Block</text>
+        <text x="446" y="36" class="ts" text-anchor="middle">Code</text>
+        <rect x="610" y="19" width="62" height="26" rx="8" class="tool"/>
+        <text x="641" y="36" class="ts c-tool" text-anchor="middle">● 在线</text>
+        <rect x="680" y="19" width="58" height="26" rx="8" class="bx2"/>
+        <text x="709" y="36" class="ts" text-anchor="middle">连接</text>
+
+        <line x1="70" y1="54" x2="70" y2="382" class="grid"/>
+        <circle cx="40" cy="84" r="9" fill="#FF6680"/><text x="40" y="108" class="ts" text-anchor="middle">节点</text>
+        <circle cx="40" cy="134" r="9" fill="#FFAB19"/><text x="40" y="158" class="ts" text-anchor="middle">事件</text>
+        <circle cx="40" cy="184" r="9" fill="#9966FF"/><text x="40" y="208" class="ts" text-anchor="middle">控制</text>
+        <circle cx="40" cy="234" r="9" fill="#4C97FF"/><text x="40" y="258" class="ts" text-anchor="middle">LED</text>
+        <circle cx="40" cy="284" r="9" fill="#4CBF4A"/><text x="40" y="308" class="ts" text-anchor="middle">传感器</text>
+
+        <line x1="220" y1="54" x2="220" y2="382" class="grid"/>
+        <rect x="84" y="72" width="120" height="26" rx="6" fill="#FFAB19"/><text x="96" y="89" font-size="11.5" fill="#fff">当节点连接时</text>
+        <rect x="84" y="108" width="120" height="26" rx="6" fill="#9966FF"/><text x="96" y="125" font-size="11.5" fill="#fff">重复 10 次</text>
+        <rect x="84" y="144" width="120" height="26" rx="6" fill="#4C97FF"/><text x="96" y="161" font-size="11.5" fill="#fff">设置 LED 颜色</text>
+        <rect x="84" y="180" width="120" height="26" rx="6" fill="#4CBF4A"/><text x="96" y="197" font-size="11.5" fill="#fff">读取接近度</text>
+        <rect x="84" y="216" width="120" height="26" rx="6" fill="#9966FF"/><text x="96" y="233" font-size="11.5" fill="#fff">等待 1 秒</text>
+        <rect x="84" y="252" width="120" height="26" rx="6" fill="#FF6680"/><text x="96" y="269" font-size="11.5" fill="#fff">节点状态</text>
+
+        <rect x="252" y="78" width="164" height="30" rx="8" fill="#FFAB19"/><text x="266" y="98" font-size="12" fill="#fff">当节点连接时</text>
+        <rect x="252" y="108" width="200" height="104" rx="6" fill="#9966FF"/><text x="266" y="127" font-size="12" fill="#fff">重复 3 次</text>
+        <rect x="270" y="136" width="170" height="28" rx="6" fill="#4C97FF"/><text x="282" y="155" font-size="12" fill="#fff">设置 LED 颜色</text>
+        <rect x="388" y="141" width="44" height="18" rx="9" fill="#fff" opacity=".9"/><text x="410" y="154" font-size="10.5" fill="#1d4ed8" text-anchor="middle">红色</text>
+        <rect x="270" y="170" width="170" height="28" rx="6" fill="#9966FF" stroke="#fff" stroke-opacity=".5"/><text x="282" y="189" font-size="12" fill="#fff">等待 0.5 秒</text>
+        <rect x="252" y="212" width="150" height="28" rx="6" fill="#4CBF4A"/><text x="266" y="231" font-size="12" fill="#fff">读取接近度</text>
+        <rect x="430" y="70" width="34" height="22" rx="6" class="tool"/><text x="447" y="85" class="ts c-tool" text-anchor="middle">▶</text>
+
+        <line x1="490" y1="54" x2="490" y2="382" class="grid"/>
+        <text x="518" y="80" class="tb" style="font-size:12px">拓扑</text>
+        <text x="740" y="80" class="ts" text-anchor="end">来自硬件实时快照</text>
+        <rect x="514" y="96" width="86" height="58" rx="10" class="bx"/><circle cx="532" cy="114" r="6" fill="#ef4444"/><text x="544" y="118" class="ts tmono">0x36</text><text x="524" y="142" class="ts">接近度 12</text>
+        <rect x="630" y="96" width="86" height="58" rx="10" class="bx"/><circle cx="648" cy="114" r="6" fill="#22c55e"/><text x="660" y="118" class="ts tmono">0x37</text><text x="640" y="142" class="ts">光照 340</text>
+        <rect x="514" y="176" width="86" height="58" rx="10" class="bx"/><circle cx="532" cy="194" r="6" fill="#3b82f6"/><text x="544" y="198" class="ts tmono">0x38</text><text x="524" y="222" class="ts">压力 1.02</text>
+        <line x1="600" y1="125" x2="630" y2="125" class="ln"/>
+        <line x1="557" y1="154" x2="557" y2="176" class="ln"/>
+
+        <rect x="540" y="262" width="196" height="106" rx="14" class="llm"/>
+        <text x="556" y="284" class="tb c-llm" style="font-size:12px">AI 助手 · 看得到工作区</text>
+        <rect x="604" y="294" width="120" height="24" rx="12" class="bx2"/><text x="664" y="310" class="ts" text-anchor="middle">为什么 LED 不亮？</text>
+        <rect x="552" y="326" width="172" height="32" rx="10" class="bx"/><text x="562" y="340" class="ts">节点 0x38 已离线，</text><text x="562" y="353" class="ts">先检查第 3 块的目标地址</text>
+
+        <circle cx="234" cy="66" r="10" class="fill-human"/><text x="234" y="70" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">1</text>
+        <circle cx="500" cy="66" r="10" class="fill-human"/><text x="500" y="70" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">2</text>
+        <circle cx="528" cy="262" r="10" class="fill-human"/><text x="528" y="266" font-size="11" font-weight="700" fill="#fff" text-anchor="middle">3</text>
+      </svg>
+    </div>
+    <figcaption><b>图 1　产品界面示意（已脱敏重绘）。</b>① 积木编辑器：分类栏、积木库和脚本画布，可以生成可读的 Arduino 代码；② 实时拓扑：节点卡片来自串口同步的硬件快照；③ AI 助手：提问时会带上精简的工作区状态。</figcaption>
+  </figure>
+
+  <p>工程上一共分六层，依赖方向只允许自上而下：界面外壳、程序文档与命令总线（所有修改都通过命令完成，可撤销）、运行时（带可见执行光标的积木虚拟机）、AI 助手（流式输出，带上下文构建）、设备连接（串口与重连状态机）、本地持久化。这样分层是后面“规则能被机械检查”的前提：边界画清楚了，才有东西可以检查。</p>
+
+  <h2 id="why"><span class="no">02</span>为什么要两个 Agent</h2>
+  <p>单 Agent 模式跑了几周之后，三个缺陷才慢慢显露出来：</p>
+  <div class="cards three">
+    <div class="card risk"><h4>生成与检查共用一个上下文</h4><p>同一个模型先设计、再实现，实现中的每一处妥协它都能自圆其说，因为解释和设计出自同一套推理。</p></div>
+    <div class="card risk"><h4>缺少交叉审查</h4><p>所有检查都是自查。笔误能查出来，设计层面的偏差查不出来。</p></div>
+    <div class="card risk"><h4>架构被实现带偏</h4><p>实现遇到阻力时，模型会顺手放宽边界，因为它眼下最紧迫的目标是进度。几轮之后，架构文档和代码就对不上了。</p></div>
+  </div>
+  <p>这三个问题的根源都是一个 Agent 只有一个视角。我的解法是引入第二个模型，并且做了更关键的一步：<strong>约定写在文件里，而不是留在对话里</strong>。会话一结束，对话上下文就没了，文件会一直留在仓库中。</p>
+
+  <h2 id="flow"><span class="no">03</span>工作流全景</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 392" role="img" aria-label="双 Agent 工作流：人定方向，Claude 与 Codex 都读写共享规则文件，改动以工作分支 diff 的形式接受评审，最后经人工把关后合并">
+        <rect x="270" y="12" width="220" height="56" rx="12" class="human"/>
+        <text x="380" y="36" class="tb" text-anchor="middle">我 · 需求方与决策人</text>
+        <text x="380" y="56" class="tm" text-anchor="middle">定方向 · 写验收标准 · 合并前把关</text>
+
+        <rect x="20" y="118" width="210" height="76" rx="12" class="llm"/>
+        <text x="125" y="144" class="tb c-llm" text-anchor="middle">Claude</text>
+        <text x="125" y="164" class="t" text-anchor="middle">架构 · 规格 · 文档</text>
+        <text x="125" y="182" class="tm" text-anchor="middle">评审意见的规范化</text>
+
+        <rect x="530" y="118" width="210" height="76" rx="12" class="alt"/>
+        <text x="635" y="144" class="tb c-alt" text-anchor="middle">Codex</text>
+        <text x="635" y="164" class="t" text-anchor="middle">实现 · 重构</text>
+        <text x="635" y="182" class="tm" text-anchor="middle">针对 diff 的交叉评审</text>
+
+        <rect x="256" y="96" width="248" height="190" rx="12" class="zone"/>
+        <text x="380" y="116" class="ts" text-anchor="middle">共享文件 · 两个 Agent 都读写</text>
+        <rect x="272" y="126" width="216" height="32" rx="7" class="bx"/>
+        <text x="284" y="146" class="t tmono" style="font-size:11.5px">AGENTS.md</text><text x="476" y="146" class="ts" text-anchor="end">常驻规则 · 415 行</text>
+        <rect x="272" y="164" width="216" height="32" rx="7" class="bx"/>
+        <text x="284" y="184" class="t tmono" style="font-size:11.5px">CLAUDE.md</text><text x="476" y="184" class="ts" text-anchor="end">单工具上下文 · 155 行</text>
+        <rect x="272" y="202" width="216" height="32" rx="7" class="bx"/>
+        <text x="284" y="222" class="t tmono" style="font-size:11.5px">review-notes</text><text x="476" y="222" class="ts" text-anchor="end">滚动评审 · 21 轮</text>
+        <rect x="272" y="240" width="216" height="32" rx="7" class="risk"/>
+        <text x="284" y="260" class="t tmono" style="font-size:11.5px">drift-audit</text><text x="476" y="260" class="ts" text-anchor="end">漂移对账 · 差异显式化</text>
+
+        <path d="M300 68 L170 116" class="ln-human" marker-end="url(#ar-human)"/>
+        <path d="M460 68 L590 116" class="ln-human" marker-end="url(#ar-human)"/>
+        <text x="196" y="88" class="ts" text-anchor="middle">任务 + 验收标准</text>
+        <text x="566" y="88" class="ts" text-anchor="middle">任务 + 验收标准</text>
+        <path d="M232 156 L254 156" class="ln-llm" marker-start="url(#ar-llm)" marker-end="url(#ar-llm)"/>
+        <path d="M528 156 L506 156" class="ln-alt" marker-start="url(#ar-alt)" marker-end="url(#ar-alt)"/>
+
+        <rect x="150" y="320" width="300" height="56" rx="12" class="bx"/>
+        <text x="300" y="344" class="tb" text-anchor="middle">工作分支 · 本轮 diff</text>
+        <text x="300" y="364" class="tm" text-anchor="middle">评审只针对这次改了什么</text>
+        <rect x="524" y="320" width="216" height="56" rx="12" class="human"/>
+        <text x="632" y="344" class="tb" text-anchor="middle">合并到 main</text>
+        <text x="632" y="364" class="tm" text-anchor="middle">人工把关：一致意见只作参考</text>
+
+        <path d="M125 196 L210 318" class="ln-llm" marker-end="url(#ar-llm)"/>
+        <text x="160" y="262" class="ts c-llm" text-anchor="end">提交实现</text>
+        <path d="M600 196 L408 318" class="ln-alt" marker-end="url(#ar-alt)"/>
+        <text x="566" y="262" class="ts c-alt">评审 diff</text>
+        <path d="M452 348 L520 348" class="ln" marker-end="url(#ar)"/>
+        <text x="486" y="340" class="ts" text-anchor="middle">通过</text>
+      </svg>
+    </div>
+    <figcaption><b>图 2　一份规则、两类角色、一条评审流。</b>两个 Agent 都有写权限，彼此之间不靠对话传递信息，只通过仓库里的文件交接；评审对象是工作分支的 diff；合并永远要经过人。</figcaption>
+  </figure>
+
+  <h2 id="rules"><span class="no">04</span>规则要能被机械检查</h2>
+  <p>规则拆成两个文件：<code>AGENTS.md</code> 对所有 Agent、所有会话生效，写的是常驻约束，包括架构隔离、禁止事项和评审流程；<code>CLAUDE.md</code> 只给单个工具使用，写技术栈、关键文件索引和必读清单。拆开的理由是变更成本：前者是大家共同依赖的约束，后者只是某个工具的上下文，两者合在一起，改任何一边的上下文都得动所有人依赖的那份文件。</p>
+  <p>整套流程里我认为最有价值的一条经验是：</p>
+  <div class="callout"><span class="label">判断</span><p>在有 Agent 参与的项目里，<strong>一条无法被机械检查的规则，实际约束力接近于零</strong>。Agent 很擅长在“看起来符合”和“确实符合”之间含糊过去，而人不会逐行核对。</p></div>
+
+  <div class="cards">
+    <div class="rulecard">
+      <header><span>无效的规则</span><span class="bad">无法判定</span></header>
+      <ul><li>代码要优雅</li><li>模块要解耦</li><li>保持良好的可扩展性</li></ul>
+    </div>
+    <div class="rulecard">
+      <header><span>真正生效的规则</span><span class="ok">搜一次就能判定</span></header>
+      <ol><li>设备层不允许引用界面框架</li><li>运行时层不允许引用界面框架或状态库</li><li>类型层不允许引用任何模块</li></ol>
+    </div>
+  </div>
+  <p>右边每一条，在对应目录里搜索一次 import 就能判定是否违反；左边的“模块要解耦”永远判断不了。这个区别看起来很小，但它决定了规则是真的在约束 Agent，还是只是一句口号。</p>
+
+  <h2 id="review"><span class="no">05</span>单文件滚动评审</h2>
+  <p>21 轮评审记录全部写在同一个文件里，每一轮的结构都是固定的：</p>
+  <div class="rulecard">
+    <header><span>Review Round N · 固定六段</span><span>每轮必填</span></header>
+    <ol>
+      <li><strong>背景</strong>：这一轮在做什么、为什么做</li>
+      <li><strong>关键正确性问题</strong>：协议不匹配、崩溃、不安全的解析</li>
+      <li><strong>设计与规格偏离</strong>：和规格或架构文档对不上的地方</li>
+      <li><strong>架构风险</strong>：耦合过紧、抽象边界、扩展性</li>
+      <li><strong>建议的修复</strong>：按优先级排列</li>
+      <li><strong>明确推迟的事项</strong>：必须填写，不能留空</li>
+    </ol>
+  </div>
+  <p>固定格式要解决的问题很具体：没有格式约束时，评审输出会变成散文，下一轮负责执行的那一方读不进去。“推迟事项”强制填写，是为了把“暂时不做”显式记下来，因为技术债通常就是这么丢的：过一段时间，没人记得当初为什么没做。</p>
+  <p>坚持用单文件、不按轮次拆分，原因在于 Agent 的读取习惯：<strong>它会平等对待你给它的所有材料</strong>。如果目录里有 21 个轮次文件，第 3 轮已经废弃的设计会被当成当前依据。所以我在文件顶部维护了一个摘要区，写当前状态、已定决策、未决问题和推迟项；历史轮次则明确降级为“只作为记录保留，不是权威依据”。</p>
+  <p>另外两条约束是踩坑踩出来的。第一，<strong>评审的对象是 diff，不是代码快照</strong>。早期直接在主干上改完再让 Codex 评审，它没有明确的评审对象，只能泛泛而谈；改成每轮开工作分支之后，评审才有了靶子，意见也能逐条对应到具体修改。第二，<strong>原始评审输出不能直接拿去实施</strong>。AI 的评审里有大量“可以考虑”级别的噪音，执行方直接照单全收，会去改一堆不重要的问题。所以中间必须加一道规范化：把意见压缩成“改什么、改哪个文件、验收标准是什么”。</p>
+
+  <h2 id="timeline"><span class="no">06</span>21 轮里，产品和流程一起演进</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 250" role="img" aria-label="21 轮评审时间线：前 6 轮搭框架，第 7 轮改为双向写权限，第 13 到 16 轮开发 AI 助手，第 21 轮删除 Mock 模式后出现规则过期问题">
+        <text x="40" y="26" class="ts">4 月初</text>
+        <text x="720" y="26" class="ts" text-anchor="end">5 月底</text>
+        <rect x="30" y="56" width="214" height="40" rx="8" class="bx2"/>
+        <text x="137" y="81" class="t" text-anchor="middle">搭框架 · 规格对齐</text>
+        <rect x="289" y="56" width="150" height="40" rx="8" class="bx2"/>
+        <text x="364" y="81" class="t" text-anchor="middle">交互打磨 · 文档同步</text>
+        <rect x="451" y="56" width="117" height="40" rx="8" class="llm"/>
+        <text x="509" y="81" class="t c-llm" text-anchor="middle">AI 助手</text>
+        <rect x="580" y="56" width="118" height="40" rx="8" class="bx2"/>
+        <text x="639" y="81" class="t" text-anchor="middle">接模型 · 部署</text>
+
+        <line x1="40" y1="140" x2="720" y2="140" class="ln"/>
+        <g class="ts tmono" text-anchor="middle">
+          <text x="40" y="160">0</text><text x="72.4" y="160">1</text><text x="104.8" y="160">2</text><text x="137.1" y="160">3</text><text x="169.5" y="160">4</text><text x="201.9" y="160">5</text><text x="234.3" y="160">6</text><text x="266.7" y="160">7</text><text x="299" y="160">8</text><text x="331.4" y="160">9</text><text x="363.8" y="160">10</text><text x="396.2" y="160">11</text><text x="428.6" y="160">12</text><text x="461" y="160">13</text><text x="493.3" y="160">14</text><text x="525.7" y="160">15</text><text x="558.1" y="160">16</text><text x="590.5" y="160">17</text><text x="622.9" y="160">18</text><text x="655.2" y="160">19</text><text x="687.6" y="160">20</text><text x="720" y="160">21</text>
+        </g>
+        <g class="fill-muted">
+          <circle cx="40" cy="140" r="4"/><circle cx="72.4" cy="140" r="4"/><circle cx="104.8" cy="140" r="4"/><circle cx="137.1" cy="140" r="4"/><circle cx="169.5" cy="140" r="4"/><circle cx="201.9" cy="140" r="4"/><circle cx="234.3" cy="140" r="4"/><circle cx="299" cy="140" r="4"/><circle cx="331.4" cy="140" r="4"/><circle cx="363.8" cy="140" r="4"/><circle cx="396.2" cy="140" r="4"/><circle cx="428.6" cy="140" r="4"/><circle cx="590.5" cy="140" r="4"/><circle cx="622.9" cy="140" r="4"/><circle cx="655.2" cy="140" r="4"/><circle cx="687.6" cy="140" r="4"/>
+        </g>
+        <g class="fill-llm"><circle cx="461" cy="140" r="5"/><circle cx="493.3" cy="140" r="5"/><circle cx="525.7" cy="140" r="5"/><circle cx="558.1" cy="140" r="5"/></g>
+        <circle cx="266.7" cy="140" r="7" class="fill-human"/>
+        <circle cx="720" cy="140" r="7" class="fill-risk"/>
+        <text x="20" y="120" class="ts">评审轮次</text>
+
+        <line x1="266.7" y1="166" x2="266.7" y2="186" class="ln-human"/>
+        <text x="272" y="200" class="t c-human" style="font-size:12px">R7 · 两方都可改代码和文档</text>
+        <line x1="720" y1="166" x2="720" y2="186" class="ln-risk"/>
+        <text x="720" y="200" class="t c-risk" style="font-size:12px" text-anchor="end">R21 · 删除 Mock 模式 → 规则过期</text>
+        <line x1="509" y1="166" x2="509" y2="214" class="ln-llm"/>
+        <text x="509" y="232" class="t c-llm" style="font-size:12px" text-anchor="middle">R13–R16 · 方案 → 外壳 → 流式代理 → 上下文注入</text>
+      </svg>
+    </div>
+    <figcaption><b>图 3　21 轮评审的时间线。</b>大约两个月。第 7 轮是流程上的转折点；AI 助手这个功能按照“先写方案、再搭外壳、再接流式代理、最后注入上下文”拆成了四轮，每一轮都可以单独评审。</figcaption>
+  </figure>
+  <p>回头看，<strong>评审轮次的切分方式本身就是一种设计</strong>。AI 助手如果一轮做完，负责评审的一方面对的是一个上千行的 diff，只能给出泛泛的意见；拆成四轮之后，每一轮都有清晰的验收标准：这一轮只验证外壳能不能渲染消息，下一轮只验证流式代理有没有把密钥留在服务端，依此类推。</p>
+
+  <h2 id="drift"><span class="no">07</span>真正的难点：双基线漂移</h2>
+  <p>让我三次修改工作流定义的，是漂移。早期流程是单向流水线：Claude 写代码，Codex 评审，我定方向。问题在于，Codex 评审时发现文档和代码不一致，却没有修改权，只能等；Claude 实现时发现设计不成立，同样只能等。所以从第 7 轮开始改成了双向：</p>
+  <p class="quote">Claude 和 Codex 都改代码、都改文档，工作在同一套共享文档上。仓库里可能暂时存在两条活跃基线：可运行的代码基线，和文档描述的意图基线。</p>
+  <p>效率明显提高了，但同一轮记录里我也写下了代价：两个 Agent 都能改代码和文档，漂移就会更容易发生。<strong>自由度上去，一致性就下来</strong>，这是整套流程里最核心的一个权衡。</p>
+
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 300" role="img" aria-label="漂移治理：代码基线与文档基线之间的每处差异被标注为文档领先、代码领先或需人工判断，写入漂移对账文档，下一轮有意选择跟随哪条基线">
+        <text x="20" y="28" class="tm">第 7 轮起：两个 Agent 都能改代码和文档 → 仓库里同时存在两条基线</text>
+        <rect x="20" y="62" width="96" height="36" rx="8" class="alt"/><text x="68" y="85" class="t c-alt" text-anchor="middle">代码基线</text>
+        <rect x="20" y="182" width="96" height="36" rx="8" class="llm"/><text x="68" y="205" class="t c-llm" text-anchor="middle">文档基线</text>
+        <line x1="116" y1="80" x2="470" y2="80" class="ln-alt" stroke-width="3"/>
+        <line x1="116" y1="200" x2="470" y2="200" class="ln-llm" stroke-width="3"/>
+
+        <line x1="180" y1="84" x2="180" y2="196" class="ln-risk dash"/>
+        <line x1="290" y1="84" x2="290" y2="196" class="ln-risk dash"/>
+        <line x1="400" y1="84" x2="400" y2="196" class="ln-risk dash"/>
+        <rect x="134" y="126" width="92" height="28" rx="14" class="bx"/><text x="180" y="145" class="t" style="font-size:12px" text-anchor="middle">文档领先</text>
+        <rect x="244" y="126" width="92" height="28" rx="14" class="bx"/><text x="290" y="145" class="t" style="font-size:12px" text-anchor="middle">代码领先</text>
+        <rect x="346" y="126" width="108" height="28" rx="14" class="human"/><text x="400" y="145" class="t c-human" style="font-size:12px" text-anchor="middle">都成立 · 由人决定</text>
+        <text x="290" y="244" class="tm" text-anchor="middle">每一轮都给每一处差异标注归属</text>
+
+        <path d="M474 140 L520 140" class="ln" marker-end="url(#ar)"/>
+        <rect x="524" y="96" width="216" height="88" rx="12" class="risk"/>
+        <text x="632" y="124" class="tb" text-anchor="middle">漂移对账文档</text>
+        <text x="632" y="146" class="tm" text-anchor="middle">不判断哪一方自动正确</text>
+        <text x="632" y="164" class="tm" text-anchor="middle">只把差异显式化</text>
+        <path d="M632 186 L632 222" class="ln" marker-end="url(#ar)"/>
+        <rect x="524" y="226" width="216" height="54" rx="12" class="human"/>
+        <text x="632" y="250" class="tb" text-anchor="middle">下一轮</text>
+        <text x="632" y="268" class="tm" text-anchor="middle">有意选择跟随哪一条基线</text>
+      </svg>
+    </div>
+    <figcaption><b>图 4　漂移的产生与治理。</b>“两者都成立、需人工判断”这一类必须保留。有些分歧不是对错问题，而是取舍，显式标出来交给人判断，比让 Agent 自己选一边安全得多。</figcaption>
+  </figure>
+
+  <h2 id="context"><span class="no">08</span>给 AI 助手设计上下文：能力和成本怎么取舍</h2>
+  <p>产品里的 AI 助手也是我做取舍最多的地方。它要“懂工作区”，就得把工作区状态发给模型。可工作区状态有很多档：模式、在线节点、LED 状态、程序结构、运行日志，甚至几秒钟的完整传感器原始数据流。发得越多，答得越准，也越贵。我按测试模型的公开价格，把几类典型提问的成本估了一遍：</p>
+
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 270" role="img" aria-label="每千次提问估算成本：前四档都在 0.7 到 3.3 新元之间，全量实时原始流达到 17 到 27 新元，约高一个数量级">
+        <g class="t" style="font-size:12.5px" text-anchor="end">
+          <text x="232" y="45">简单问答</text>
+          <text x="232" y="85">常规协助 · 精简上下文</text>
+          <text x="232" y="125">传感器问题 · +快照</text>
+          <text x="232" y="165">程序调试 · +逻辑与日志</text>
+          <text x="232" y="205">全量实时原始流</text>
+        </g>
+        <line x1="245" y1="24" x2="245" y2="222" class="grid"/>
+        <line x1="325" y1="24" x2="325" y2="222" class="grid dash"/>
+        <line x1="405" y1="24" x2="405" y2="222" class="grid dash"/>
+        <line x1="485" y1="24" x2="485" y2="222" class="grid dash"/>
+        <line x1="565" y1="24" x2="565" y2="222" class="grid dash"/>
+        <line x1="645" y1="24" x2="645" y2="222" class="grid dash"/>
+        <line x1="725" y1="24" x2="725" y2="222" class="grid dash"/>
+
+        <rect x="256.2" y="32" width="6.4" height="18" rx="3" class="fill-muted"/>
+        <text x="270" y="45" class="ts">0.7–1.1</text>
+        <rect x="257.8" y="72" width="6.4" height="18" rx="3" class="fill-human"/>
+        <text x="272" y="85" class="ts c-human">0.8–1.2 · 默认方案</text>
+        <rect x="265.8" y="112" width="9.6" height="18" rx="3" class="fill-muted"/>
+        <text x="283" y="125" class="ts">1.3–1.9 · 按需追加</text>
+        <rect x="267.4" y="152" width="30.4" height="18" rx="3" class="fill-muted"/>
+        <text x="306" y="165" class="ts">1.4–3.3 · 按需追加</text>
+        <rect x="517" y="192" width="160" height="18" rx="3" class="fill-risk"/>
+        <rect x="245" y="198" width="272" height="6" rx="3" class="fill-risk" opacity=".25"/>
+        <text x="684" y="205" class="ts c-risk">17–27+</text>
+
+        <g class="ts tmono" text-anchor="middle">
+          <text x="245" y="242">0</text><text x="325" y="242">5</text><text x="405" y="242">10</text><text x="485" y="242">15</text><text x="565" y="242">20</text><text x="645" y="242">25</text><text x="725" y="242">30</text>
+        </g>
+        <text x="485" y="262" class="ts" text-anchor="middle">每 1000 次提问的估算成本（新元）</text>
+      </svg>
+    </div>
+    <figcaption><b>图 5　上下文越完整越贵，但只有最后一档是数量级的跳变。</b>按测试阶段所用低价模型的公开价格估算，假设平均每次回答约 500 个输出 token。前四档的差别在几毛钱以内，全量实时数据流贵了大约 20 倍。</figcaption>
+  </figure>
+
+  <p>结论是一个分层策略：<strong>默认发精简上下文</strong>（当前模式、节点、LED 状态、程序摘要、最近日志），只有当问题确实涉及传感器或调试时才按需追加，全量原始数据流默认不发。界面上保留完整的聊天历史，但不在每次请求时都把全部历史发给模型，因为那部分成本会随对话长度线性增长，后续可以用摘要来压缩。</p>
+  <p>我同时把这个功能“离生产还差什么”写成了清单：密钥目前只放在服务端，前端只调代理接口；但真正对外开放之前，还需要用户身份、按用户和按 IP 限流、输出长度上限、每次请求的用量与成本日志、以及一个能随时关掉 AI 调用的总开关。<strong>能演示和能上线是两件事</strong>，把两者之间的差距写清楚，本身就是交付的一部分。</p>
+
+  <h2 id="problems"><span class="no">09</span>过程中暴露的四个问题</h2>
+  <div class="cards">
+    <div class="card risk"><span class="tag">规范腐化</span><h4>规则文件自己成了最不规范的文件</h4><p>后期出现了两组内容基本重复的条款。追加规则时没有人对照已有条款，Agent 也不会主动指出重复。规则文件的去重必须专门安排时间去做。</p></div>
+    <div class="card risk"><span class="tag">指令漂移</span><h4>过期条款没有清理</h4><p>有条规则要求“Mock 模式必须始终可运行”，但这个功能在第 21 轮被整体删除了。常驻规则里躺着一条要求维护已删除功能的指令，这比代码和文档不一致更隐蔽。应对方法是给规则加上时间戳和失效条件。</p></div>
+    <div class="card risk"><span class="tag">编号冲突</span><h4>评审轮次编号撞车</h4><p>中途重置过一次编号，结果第 3、4、5 轮各出现了两次。结论是编号一旦启用就不再复用，要重新开始就换一个命名空间。</p></div>
+    <div class="card human"><span class="tag">共享先验</span><h4>两个 Agent 一致，不等于正确</h4><p>有一次双方都认可某个设计，采纳后才发现它不满足需求。两个模型共享相似的先验，会一起出错。交叉评审能消除随机性错误，消除不了系统性偏差。</p></div>
+  </div>
+  <p>最后一条决定了人的位置：一致意见可以快速通过，<strong>分歧点才是真正需要人做决策的地方</strong>。最终决定权必须留在人手里，原因不是模型能力不够，而是两个模型会以相同的方式出错。</p>
+
+  <h2 id="template"><span class="no">10</span>可以照搬的最小版本</h2>
+  <p>不需要一上来就写 415 行规则。最小可用的版本只要三个文件：</p>
+  <div class="rulecard">
+    <header><span>最小模板</span><span>从 20 行开始</span></header>
+    <ul>
+      <li><code>AGENTS.md</code>：常驻规则。每条都要能被检查，并且写上什么时候失效</li>
+      <li><code>docs/handoff.md</code>：滚动交接日志，顶部是当前状态、已定决策和待办</li>
+      <li><code>docs/drift.md</code>：漂移对账，只在出现分歧时写</li>
+    </ul>
+  </div>
+
+  <h2 id="summary"><span class="no">11</span>小结</h2>
+  <ol class="takeaways">
+    <li>规则要能被机械检查，否则就等于没有规则。</li>
+    <li>评审要针对 diff，并且先规范化再实施，否则会退化成泛泛而谈。</li>
+    <li>两个 Agent 都有写权限时，漂移是必然的，只能靠每轮显式标注、单独对账来管住。</li>
+    <li>上下文按需分层，默认发精简状态。全量数据通常是数量级的成本跳变，带来的收益却很少。</li>
+    <li>最终决定权要始终留给人，因为两个模型可能以同样的方式出错。</li>
+  </ol>
+
+  <div class="skillbar"><b>这个作品体现的能力</b>
+    <div class="pills"><span class="pill acc">多 Agent 协作流程</span><span class="pill acc">上下文工程</span><span class="pill">LLM 调用成本评估</span><span class="pill">前端架构分层</span><span class="pill">评审与治理机制</span><span class="pill">产品需求定义</span></div>
+  </div>
+
+  <p class="note">本文讨论的是个人开发的工作方法。产品名称、部署地址和所属团队信息均已隐去，界面图为示意重绘，不涉及任何组织的业务信息。</p>
+
+  <nav class="postnav">
+    <a href="../index.html"><small>← 返回</small><span>作品集首页</span></a>
+    <a class="next" href="02-prompt-evaluation.html"><small>下一篇 →</small><span>提示策略对照评测的复盘</span></a>
+  </nav>
+</article>
+
+<aside class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#product">先看产品</a></li>
+    <li><a href="#why">为什么要两个 Agent</a></li>
+    <li><a href="#flow">工作流全景</a></li>
+    <li><a href="#rules">规则要能被机械检查</a></li>
+    <li><a href="#review">单文件滚动评审</a></li>
+    <li><a href="#timeline">21 轮的演进</a></li>
+    <li><a href="#drift">双基线漂移</a></li>
+    <li><a href="#context">上下文与成本</a></li>
+    <li><a href="#problems">暴露的四个问题</a></li>
+    <li><a href="#template">最小版本</a></li>
+    <li><a href="#summary">小结</a></li>
+  </ol>
+</aside>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <span>© 2026 Yu Dian · 文章与插图以 CC BY 4.0 提供</span>
+    <span><a href="https://github.com/evelyn77yu">GitHub</a> · <a href="https://evelyn77yu.github.io">主页</a></span>
+  </div>
+</footer>
+</body>
+</html>

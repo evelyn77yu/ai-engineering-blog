@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>多序列脑 MRI 表征学习 · AI Engineering Notes</title>
+<meta name="description" content="用多序列 MRI 之间的对应关系做无标签训练：设计原则、防数据泄漏的评估、每次只改一个因素的受控实验、权重审计诊断、本地与服务器两个 AI 的交接，以及一次汇报叙事的重构。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="多序列脑 MRI 表征学习 · AI Engineering Notes">
+<meta property="og:description" content="用多序列 MRI 之间的对应关系做无标签训练：设计原则、防数据泄漏的评估、每次只改一个因素的受控实验、权重审计诊断、本地与服务器两个 AI 的交接，以及一次汇报叙事的重构。">
+<meta property="og:url" content="https://evelyn77yu.github.io/ai-engineering-blog/posts/04-mri-label-free-embedding.html">
+<meta property="og:image" content="https://evelyn77yu.github.io/ai-engineering-blog/assets/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23171925'/%3E%3Ctext x='32' y='41' font-family='monospace' font-size='26' font-weight='700' fill='%23fde68a' text-anchor='middle'%3EYD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true"><defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk"/></marker>
+  <marker id="ar-llm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-llm"/></marker>
+  <marker id="ar-tool" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-tool"/></marker>
+  <marker id="ar-human" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-human"/></marker>
+  <marker id="ar-risk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-risk"/></marker>
+  <marker id="ar-alt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-alt"/></marker>
+</defs></svg>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-mark">YD</span><span class="brand-text">AI Engineering Notes</span></a>
+    <nav class="nav-links">
+      <a href="../index.html#works">作品</a>
+      <a href="../index.html#principles">判断原则</a>
+      <a href="../index.html#map">能力地图</a>
+      <a href="https://evelyn77yu.github.io">主页 ↗</a>
+    </nav>
+  </div>
+</header>
+
+<section class="post-hero">
+  <div class="wrap">
+    <div class="crumbs"><a href="../index.html">作品集</a> / 04 · AI for Science</div>
+    <h1>多序列脑 MRI 的无标签表征学习：受控实验、权重审计与一次叙事重构</h1>
+    <p class="lede">T1、T2、FLAIR 这几种 MRI 序列，拍的是同一块组织，只是视角不同，所以它们理论上可以互相提供监督信号。我的科研课题，是把这个原理落实成一套可控的无标签训练与评估框架，底座是公开的放射学基础模型 RadFM。这篇复盘不讲“模型提高了多少”，因为第一轮恰恰没有提高。它讲的是我怎样设计实验，怎样发现训练其实没有真正生效，又怎样把这件事诚实地讲清楚。</p>
+    <p class="postinfo">阅读约 8 分钟 · 更新于 2026 年 10 月 21 日</p>
+    <dl class="meta">
+      <div><dt>领域</dt><dd>医学影像 · 自监督学习</dd></div>
+      <div><dt>我的角色</dt><dd>课题设计 · 实验 · 分析 · 汇报</dd></div>
+      <div><dt>规模</dt><dd>多来源公开数据 · 小样本临床评估 · 3 轮受控实验</dd></div>
+      <div><dt>关键词</dt><dd>防数据泄漏 · 诊断分析 · 双 AI 交接</dd></div>
+    </dl>
+  </div>
+</section>
+
+<div class="layout">
+<article class="prose">
+
+  <section class="pitch"><span class="label">30 秒版本</span><p>我的科研课题是利用多序列脑 MRI 之间的对应关系做无标签训练，学习一个通用的脑部表征。我先把难点拆成设计原则，再搭建了预处理流程、两种无标签任务和防数据泄漏的评估协议，做了三轮每次只改一个因素的受控实验。第一轮没有超过原始模型，但我注意到损失在下降、表征却几乎没变，顺着这条线索查下去，发现是数值精度导致权重没有被真正更新。所以我把第一轮定位为基线，修正之后再扩大数据规模。</p></section>
+
+  <div class="tldr">
+    <div><h4>背景</h4><p>医学影像的专家标签又慢又贵，无标签扫描却很多。问题是：只用无标签的多序列影像去训练，能不能让一个通用的脑部表征更好地区分健康、痴呆和帕金森？</p></div>
+    <div><h4>我做了什么</h4><p>搭了多来源预处理流程，设计了两种基于序列对应关系的无标签任务，评估协议用冻结编码器加重复嵌套交叉验证，保证不泄漏标签。实验做了三轮，每轮只改一个因素，最后做诊断分析。</p></div>
+    <div><h4>关键判断</h4><p>训练损失在下降，编码器却几乎没变。我怀疑是数值精度的问题，做了权重审计，发现大部分线性层权重几乎没有被更新。所以第一轮检验的是整套流程，还没有真正检验假设。</p></div>
+    <div><h4>结果</h4><p>框架和基线都已就位。汇报的主线从“负结果”重构为“原理 → 设计 → 受控实验 → 诊断 → 基线 → 扩容路线”。预处理实现了并发加速，确定性问题也已修复。</p></div>
+  </div>
+
+  <h2 id="principle"><span class="no">01</span>原理：一个大脑，三种视角</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 290" role="img" aria-label="同一大脑的 T1、T2、FLAIR 三种序列在同一位置对应同一组织，可以构造两种无标签任务：判断是不是同一个人，以及判断是不是同一位置">
+        <text x="200" y="22" class="tm" text-anchor="middle">同一位置 = 同一组织 = 免费的监督信号</text>
+        <ellipse cx="80" cy="140" rx="50" ry="64" fill="#9ca3af" stroke="#6b7280"/>
+        <ellipse cx="80" cy="140" rx="34" ry="46" fill="#e5e7eb"/>
+        <line x1="80" y1="78" x2="80" y2="202" stroke="#6b7280"/>
+        <ellipse cx="200" cy="140" rx="50" ry="64" fill="#374151" stroke="#6b7280"/>
+        <ellipse cx="200" cy="140" rx="34" ry="46" fill="#4b5563"/>
+        <ellipse cx="200" cy="140" rx="8" ry="20" fill="#f3f4f6"/>
+        <line x1="200" y1="78" x2="200" y2="202" stroke="#9ca3af"/>
+        <ellipse cx="320" cy="140" rx="50" ry="64" fill="#6b7280" stroke="#4b5563"/>
+        <ellipse cx="320" cy="140" rx="34" ry="46" fill="#9ca3af"/>
+        <ellipse cx="336" cy="118" rx="8" ry="6" fill="#f9fafb"/>
+        <line x1="320" y1="78" x2="320" y2="202" stroke="#4b5563"/>
+        <g stroke="#ffffff" stroke-opacity=".35" fill="none">
+          <path d="M30 108H130M30 140H130M30 172H130M55 76V204M105 76V204"/>
+          <path d="M150 108H250M150 140H250M150 172H250M175 76V204M225 76V204"/>
+          <path d="M270 108H370M270 140H370M270 172H370M295 76V204M345 76V204"/>
+        </g>
+        <rect x="80" y="108" width="25" height="32" class="human" fill-opacity=".85"/>
+        <rect x="200" y="108" width="25" height="32" class="human" fill-opacity=".85"/>
+        <rect x="320" y="108" width="25" height="32" class="human" fill-opacity=".85"/>
+        <path d="M95 104 Q 152 52 210 104" class="ln-human" marker-end="url(#ar-human)"/>
+        <path d="M215 104 Q 272 52 330 104" class="ln-human" marker-end="url(#ar-human)"/>
+        <g class="t" text-anchor="middle" style="font-size:12.5px"><text x="80" y="232">T1</text><text x="200" y="232">T2</text><text x="320" y="232">FLAIR</text></g>
+        <g class="ts" text-anchor="middle"><text x="80" y="250">解剖结构</text><text x="200" y="250">液体</text><text x="320" y="250">病灶</text></g>
+        <text x="200" y="278" class="ts" text-anchor="middle">示意图，非真实影像</text>
+
+        <rect x="404" y="24" width="336" height="114" rx="12" class="bx"/>
+        <text x="420" y="48" class="tb">任务 1 · 是不是同一个人？</text>
+        <text x="420" y="66" class="ts">病例级对比学习</text>
+        <rect x="420" y="80" width="86" height="24" rx="6" class="bx2"/><text x="463" y="96" class="ts" text-anchor="middle">受试者 i · 视图 1</text>
+        <rect x="420" y="108" width="86" height="24" rx="6" class="bx2"/><text x="463" y="124" class="ts" text-anchor="middle">受试者 i · 视图 2</text>
+        <rect x="636" y="94" width="86" height="24" rx="6" class="bx2"/><text x="679" y="110" class="ts" text-anchor="middle">受试者 j</text>
+        <path d="M508 92 L560 102" class="ln-tool" marker-end="url(#ar-tool)"/><path d="M508 120 L560 110" class="ln-tool" marker-end="url(#ar-tool)"/>
+        <circle cx="568" cy="106" r="7" class="fill-tool"/>
+        <text x="540" y="86" class="ts c-tool" text-anchor="middle">拉近</text>
+        <path d="M580 106 L632 106" class="ln-risk dash" marker-start="url(#ar-risk)"/>
+        <text x="606" y="98" class="ts c-risk" text-anchor="middle">推远</text>
+
+        <rect x="404" y="152" width="336" height="128" rx="12" class="bx"/>
+        <text x="420" y="176" class="tb">任务 2 · 是不是同一位置？</text>
+        <text x="420" y="194" class="ts">局部跨序列对比</text>
+        <g>
+          <rect x="420" y="206" width="48" height="48" rx="4" class="bx2"/><rect x="436" y="222" width="16" height="16" class="human"/>
+          <rect x="548" y="206" width="48" height="48" rx="4" class="bx2"/><rect x="564" y="222" width="16" height="16" class="human"/>
+          <rect x="548" y="206" width="16" height="16" fill="none" class="ln dash"/><rect x="580" y="238" width="16" height="16" fill="none" class="ln dash"/>
+          <path d="M470 230 L546 230" class="ln-human" marker-end="url(#ar-human)"/>
+          <text x="444" y="268" class="ts" text-anchor="middle">T1 局部块</text><text x="572" y="268" class="ts" text-anchor="middle">FLAIR 同位置</text>
+          <text x="612" y="222" class="ts">相邻块不作负样本</text>
+          <text x="612" y="240" class="ts">其他位置作负样本</text>
+        </g>
+      </svg>
+    </div>
+    <figcaption><b>图 1　核心原理与两个无标签任务。</b>同一位置在不同序列里对应的是同一块组织，这本身就是监督信号，不需要任何诊断标签。任务 1 学“同一个人”，任务 2 学“同一位置”。</figcaption>
+  </figure>
+  <p>假设也写得很明确：<strong>用序列之间的对应关系做无标签训练，学到的嵌入会更通用，也更能区分健康、痴呆和帕金森。</strong>这是一个可以被证伪的假设，后面所有的设计都是为了能公平地检验它。</p>
+
+  <h2 id="principles"><span class="no">02</span>每个难点对应一条设计原则</h2>
+  <p>做方案的时候，我没有先选模型，而是先把难点列出来，每个难点对应一条原则，每条原则再落到一个具体做法：</p>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>难点</th><th>设计原则</th><th>具体做法</th></tr></thead>
+      <tbody>
+        <tr><td>有标签的受试者只有几十人</td><td>P1 · 直接衡量嵌入本身</td><td>冻结编码器 + 线性探测 + 10 次重复 × 5 折嵌套交叉验证</td></tr>
+        <tr><td>扫描仪和协议各不相同</td><td>P2 · 同一位置才代表同一组织</td><td>统一预处理：方向标准化、偏场校正、脑提取、配准到 T1</td></tr>
+        <tr><td>常规对比学习可能抹掉细微信号</td><td>P3 · 学序列之间共享的东西</td><td>加入局部跨序列任务（任务 2）</td></tr>
+        <tr><td>临床扫描常常是厚层</td><td>P4 · 检验对采集方式的鲁棒性</td><td>原分辨率与模拟 5 mm 层厚的对照实验</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="method"><span class="no">03</span>方法：四步流程，标签只在最后出现</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 270" role="img" aria-label="方法流程：无标签源数据经过预处理、预训练编码器和无标签训练，评估队列只在最后的冻结评估步骤使用，从不进入训练">
+        <rect x="10" y="40" width="166" height="96" rx="12" class="tool"/>
+        <text x="24" y="62" class="ts tmono c-tool">① P2</text><text x="24" y="82" class="tb">预处理</text>
+        <text x="24" y="102" class="ts">方向标准化 · 偏场校正</text><text x="24" y="118" class="ts">脑提取 · 配准到 T1</text>
+        <rect x="196" y="40" width="166" height="96" rx="12" class="bx"/>
+        <text x="210" y="62" class="ts tmono">②</text><text x="210" y="82" class="tb">预训练编码器</text>
+        <text x="210" y="102" class="ts">官方权重 · 3D ViT</text><text x="210" y="118" class="ts">切成固定大小的三维块</text>
+        <rect x="382" y="40" width="166" height="96" rx="12" class="llm"/>
+        <text x="396" y="62" class="ts tmono c-llm">③ P3</text><text x="396" y="82" class="tb">无标签训练</text>
+        <text x="396" y="102" class="ts">任务 1 + 任务 2</text><text x="396" y="118" class="ts">上千例无标签扫描</text>
+        <rect x="584" y="40" width="166" height="96" rx="12" class="human"/>
+        <text x="598" y="62" class="ts tmono c-human">④ P1</text><text x="598" y="82" class="tb">冻结评估</text>
+        <text x="598" y="102" class="ts">标准化 → PCA → 逻辑回归</text><text x="598" y="118" class="ts">10×5 嵌套 CV · 平衡准确率</text>
+        <path d="M177 88 L194 88" class="ln" marker-end="url(#ar)"/><path d="M363 88 L380 88" class="ln" marker-end="url(#ar)"/><path d="M549 88 L582 88" class="ln" marker-end="url(#ar)"/>
+        <text x="566" y="80" class="ts" text-anchor="middle">冻结</text>
+
+        <rect x="10" y="176" width="538" height="40" rx="10" class="bx2"/>
+        <text x="279" y="201" class="t" style="font-size:12.5px" text-anchor="middle">无标签源数据 · 多来源公开脑 MRI · 不使用任何诊断标签或报告文本</text>
+        <path d="M93 174 L93 138" class="ln" marker-end="url(#ar)"/><path d="M465 174 L465 138" class="ln" marker-end="url(#ar)"/>
+        <rect x="584" y="176" width="166" height="40" rx="10" class="human"/>
+        <text x="667" y="201" class="t" style="font-size:12.5px" text-anchor="middle">评估队列 · 三分类</text>
+        <path d="M667 174 L667 138" class="ln-human" marker-end="url(#ar-human)"/>
+        <line x1="566" y1="152" x2="566" y2="256" class="ln-risk dash" stroke-width="2"/>
+        <text x="556" y="250" class="ts c-risk" text-anchor="end">评估队列从不进入自监督训练 →</text>
+      </svg>
+    </div>
+    <figcaption><b>图 2　四步流程与标签边界。</b>红色虚线是这套评估最重要的一条线：评估队列从不参与无标签训练，分类器的超参数也只在每一折的训练部分内选择。</figcaption>
+  </figure>
+  <p>选择“冻结编码器 + 线性探测”，而不是端到端微调，是从第一条原则推出来的：有标签的人太少，微调会把编码器本身的变化和分类器的拟合能力混在一起。<strong>线性探测衡量的是嵌入本身已经编码了多少信息</strong>，这才是这个课题真正想问的问题。</p>
+
+  <h2 id="experiments"><span class="no">04</span>受控实验：每轮只改一个因素</h2>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>轮次</th><th>要回答的问题</th><th>只改了什么</th><th>学到了什么</th></tr></thead>
+      <tbody>
+        <tr><td>v1</td><td>整条流程能不能学起来？</td><td>在上千例无标签扫描上做任务 1</td><td>全流程可以端到端运行；每一轮的检查点都用同一协议评估，训练更久也没有带来提升</td></tr>
+        <tr><td>v2</td><td>局部任务能不能补充信息？</td><td>A 组只做任务 1；B 组加上任务 2。起点和训练预算相同</td><td>任务 2 的损失明显下降，但编码器自身的跨序列匹配一直持平</td></tr>
+        <tr><td>v3</td><td>厚层训练有没有帮助？</td><td>与 v2-A 相同，只把输入换成模拟 5 mm 层厚</td><td>任务对 5 mm 输入变得更鲁棒，下游分类没有变化</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="callout risk"><span class="label">一个早期教训</span><p>最早用一个固定的小测试集评估时，训练后的版本看起来有明显提升。但换成重复多次的嵌套交叉验证之后，这个优势就消失了。<strong>小样本下的单次划分会给出很有说服力的假象</strong>，这也是后来所有比较都改用重复评估的原因。</p></div>
+  <p>同一阶段还有一次实现审计：从完整模型里取图像特征的旧脚本，按固定位置截取，结果混进了几个边界标记，又漏掉了同样数量的真实图像 token。修正之后，我把原始版本和训练版本成对地重新计算了一遍；历史结果没有删除，而是标注为“旧提取方法”，<strong>不和新结果混在一起比较</strong>。</p>
+
+  <h2 id="diagnosis"><span class="no">05</span>诊断：损失在下降，表征为什么几乎没变</h2>
+  <p>三轮实验下来，下游分类结果和原始模型处于同一水平，没有高于它，差距在统计波动范围之内。在这种时候，最省事的说法是“自监督对这个任务没用”。但诊断数据里有一个对不上的地方：任务 2 的损失一直在下降，编码器自身的跨序列匹配能力却始终没有变化。<strong>损失降了，表征没动</strong>，中间一定有东西被吞掉了。</p>
+
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 236" role="img" aria-label="诊断证据链：从损失下降但表征不变的现象，到数值精度假设、数值模拟、只读权重审计，再到写清结论边界和下一步行动">
+        <g class="ts tmono" text-anchor="middle">
+          <text x="61" y="20" class="c-risk">现象</text><text x="187" y="20" class="c-llm">假设</text><text x="313" y="20" class="c-llm">模拟</text><text x="439" y="20" class="c-tool">审计</text><text x="565" y="20" class="c-human">边界</text><text x="691" y="20" class="c-human">行动</text>
+        </g>
+        <rect x="5" y="30" width="112" height="132" rx="10" class="risk"/>
+        <g class="ts"><text x="15" y="54">任务损失持续下降</text><text x="15" y="74">编码器自身的</text><text x="15" y="90">跨序列匹配</text><text x="15" y="106">始终没有变化</text><text x="15" y="130">下游分类持平</text></g>
+        <rect x="131" y="30" width="112" height="132" rx="10" class="llm"/>
+        <g class="ts"><text x="141" y="54">参数以 bf16 存储</text><text x="141" y="74">优化器直接在</text><text x="141" y="90">bf16 参数上更新</text><text x="141" y="114">学习率很小</text><text x="141" y="138">更新可能被舍入</text></g>
+        <rect x="257" y="30" width="112" height="132" rx="10" class="llm"/>
+        <g class="ts"><text x="267" y="54">按实际配置做</text><text x="267" y="70">数值模拟</text><text x="267" y="94">小于一个 bf16</text><text x="267" y="110">步长的更新</text><text x="267" y="126">大多被舍为零</text></g>
+        <rect x="383" y="30" width="112" height="132" rx="10" class="tool"/>
+        <g class="ts"><text x="393" y="54">只读比较多个</text><text x="393" y="70">训练检查点</text><text x="393" y="94">大部分线性层</text><text x="393" y="110">权重与初始相同</text><text x="393" y="134">归一化层缩放</text><text x="393" y="150">参数未变</text></g>
+        <rect x="509" y="30" width="112" height="132" rx="10" class="human"/>
+        <g class="ts"><text x="519" y="54">支持“更新被</text><text x="519" y="70">舍入”的风险</text><text x="519" y="94">不是唯一原因</text><text x="519" y="110">的证明</text><text x="519" y="134">不改写已有结果</text></g>
+        <rect x="635" y="30" width="112" height="132" rx="10" class="human"/>
+        <g class="ts"><text x="645" y="54">下一轮改用</text><text x="645" y="70">fp32 主权重</text><text x="645" y="94">第一轮结果</text><text x="645" y="110">定位为基线</text><text x="645" y="134">再去扩容</text></g>
+        <path d="M118 96 L129 96" class="ln" marker-end="url(#ar)"/><path d="M244 96 L255 96" class="ln" marker-end="url(#ar)"/><path d="M370 96 L381 96" class="ln" marker-end="url(#ar)"/><path d="M496 96 L507 96" class="ln" marker-end="url(#ar)"/><path d="M622 96 L633 96" class="ln" marker-end="url(#ar)"/>
+        <rect x="5" y="184" width="742" height="40" rx="10" class="bx2"/>
+        <text x="376" y="209" class="t" style="font-size:12.5px" text-anchor="middle">结论：第一轮检验的是整条流程，还没有真正检验“序列互相监督”这个假设</text>
+      </svg>
+    </div>
+    <figcaption><b>图 3　从“没有提升”到“为什么没有提升”。</b>审计全程只读：不训练，也不重新提取特征。结论的措辞是“支持风险”，而不是“找到了原因”，因为检查点之间的净变化测不出每一步有多少更新被舍入。</figcaption>
+  </figure>
+
+  <p>其余几项诊断，一起构成了对第一轮的完整理解：</p>
+  <div class="cards">
+    <div class="card llm"><span class="tag">A · 训练之前</span><h4>模型本来就会跨序列定位</h4><p>还没训练时，编码器在跨序列找同一位置这件事上就已经明显高于随机水平。不过其中一部分来自位置信息本身：换一个人、取同一坐标，也能匹配上不少。</p></div>
+    <div class="card tool"><span class="tag">B · 训练期间</span><h4>任务学会了，表征没跟上</h4><p>投影头空间里的任务损失下降，原始 token 的检索却没有变化。一个合理的解释是：优化收益被投影头吸收了，没有进入编码器。</p></div>
+    <div class="card risk"><span class="tag">C · 编码器内部</span><h4>大部分权重没有被更新</h4><p>这就是图 3 中的权重审计。它把“训练无效”这个模糊的结论，变成了一个可以修正的具体工程问题。</p></div>
+    <div class="card alt"><span class="tag">D · 嵌入结构</span><h4>按序列聚类，而不是按诊断</h4><p>降维可视化显示，嵌入主要按 T1、T2、FLAIR 分开，按疾病类别几乎分不开。表征里最强的信号是“这是哪种序列”。</p></div>
+  </div>
+
+  <h2 id="engineering"><span class="no">06</span>工程：让预处理又快又可复现</h2>
+  <p>要扩大数据规模，预处理必须先过关。这一部分我做了四件事：</p>
+  <div class="cards">
+    <div class="card tool"><span class="tag">去掉重复计算</span><h4>每次检查只选一个主 T1</h4><p>旧流程会对每个 T1 都做一遍偏场校正和脑提取，再把其余序列配准到每一个 T1。对有多个 T1 的病例，偏场校正、脑提取和配准的次数都成倍减少。</p></div>
+    <div class="card tool"><span class="tag">并发调度</span><h4>多病例并发，GPU 互斥</h4><p>按 CPU 和内存配额做资源门控，新任务在资源允许时立即派发，不再每例固定等待。短队列测试中，整体耗时明显缩短。</p></div>
+    <div class="card human"><span class="tag">确定性</span><h4>并发不能换来不一致</h4><p>脑提取工具在初始化时会默认开启非确定性的卷积算法选择。关闭之后再固定种子，串行和并发两种方式输出的脑图与掩膜做到了逐体素一致。</p></div>
+    <div class="card"><span class="tag">规模验证</span><h4>多来源扩展样本全部跑通</h4><p>基础数值检查全部通过。但“数值检查通过”不等于“医学质控通过”，后者另行人工复核，两件事不混为一谈。</p></div>
+  </div>
+
+  <h2 id="handoff"><span class="no">07</span>本地 AI 与服务器 AI 的交接</h2>
+  <p>做海报和论文图表时，我遇到了一个很实际的约束：原始影像、模型权重和 GPU 都在服务器上，而且不能离开服务器；方案、文案和可视化设计则在本地完成。所以我让两个 AI 按照<strong>数据访问边界</strong>来分工，通过 Git 里的一个交接目录协作：</p>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 300" role="img" aria-label="本地 Claude Code 负责方案与可视化，服务器端 AI 负责数据与运行，二者通过 Git 交接目录中的需求单、交付回复、机器可读指标和状态表协作；原始影像和身份信息不出服务器">
+        <rect x="270" y="10" width="220" height="50" rx="12" class="human"/>
+        <text x="380" y="32" class="tb" text-anchor="middle">我 · 授权范围</text>
+        <text x="380" y="50" class="ts" text-anchor="middle">本轮：不训练 · 不新提取特征</text>
+
+        <rect x="10" y="100" width="190" height="110" rx="12" class="llm"/>
+        <text x="105" y="126" class="tb c-llm" text-anchor="middle">本地 · Claude Code</text>
+        <g class="ts" text-anchor="middle"><text x="105" y="150">方案 · 文案 · 排版</text><text x="105" y="168">海报与幻灯片设计</text><text x="105" y="186">只看汇总数据</text></g>
+
+        <rect x="560" y="100" width="190" height="110" rx="12" class="alt"/>
+        <text x="655" y="126" class="tb c-alt" text-anchor="middle">服务器 · 另一个 AI</text>
+        <g class="ts" text-anchor="middle"><text x="655" y="150">原始影像 · 权重 · GPU</text><text x="655" y="168">运行脚本、导出素材</text><text x="655" y="186">按需求单执行</text></g>
+
+        <rect x="236" y="84" width="288" height="196" rx="12" class="zone"/>
+        <text x="380" y="104" class="ts" text-anchor="middle">Git 交接目录</text>
+        <rect x="252" y="114" width="256" height="34" rx="7" class="bx"/><text x="264" y="135" class="t" style="font-size:12.5px">需求单</text><text x="496" y="135" class="ts" text-anchor="end">输入 · 方法 · 规格 · 验收</text>
+        <rect x="252" y="154" width="256" height="34" rx="7" class="bx"/><text x="264" y="175" class="t" style="font-size:12.5px">交付回复</text><text x="496" y="175" class="ts" text-anchor="end">做了什么 · 偏差 · 边界</text>
+        <rect x="252" y="194" width="256" height="34" rx="7" class="tool"/><text x="264" y="215" class="t" style="font-size:12.5px">机器可读指标</text><text x="496" y="215" class="ts" text-anchor="end">JSON / CSV</text>
+        <rect x="252" y="234" width="256" height="34" rx="7" class="bx"/><text x="264" y="255" class="t" style="font-size:12.5px">状态表 + 双方日志</text><text x="496" y="255" class="ts" text-anchor="end">按日期与角色命名</text>
+
+        <path d="M202 131 L250 131" class="ln-llm" marker-end="url(#ar-llm)"/>
+        <text x="226" y="123" class="ts c-llm" text-anchor="middle">提需求</text>
+        <path d="M558 170 L510 170" class="ln-alt" marker-end="url(#ar-alt)"/>
+        <path d="M558 211 L510 211" class="ln-alt" marker-end="url(#ar-alt)"/>
+        <text x="534" y="162" class="ts c-alt" text-anchor="middle">交付</text>
+        <path d="M250 211 L202 196" class="ln-tool" marker-end="url(#ar-tool)"/>
+        <text x="105" y="230" class="ts c-tool" text-anchor="middle">只从机器可读文件读数字</text>
+        <path d="M330 62 L180 98" class="ln-human" marker-end="url(#ar-human)"/><path d="M430 62 L580 98" class="ln-human" marker-end="url(#ar-human)"/>
+
+        <line x1="544" y1="226" x2="544" y2="292" class="ln-risk dash" stroke-width="2"/>
+        <text x="552" y="244" class="ts c-risk">原始影像 · 受试者身份</text>
+        <text x="552" y="260" class="ts c-risk">逐人预测与概率</text>
+        <text x="552" y="276" class="ts c-risk">不出服务器</text>
+      </svg>
+    </div>
+    <figcaption><b>图 4　按数据访问边界分工的双 AI 协作。</b>和第一篇的双 Agent 开发相比，这里的分工依据不是角色，而是“谁能接触什么数据”。所有数字只从机器可读的文件中读取，不手抄。</figcaption>
+  </figure>
+  <p>几条规则让这个协作可控：需求偏离规格时，在交付回复里写明原因，不擅自改需求单；新结果写入新目录，不覆盖旧结果；临床队列的影像不提交；模型权重和原始影像一律不进仓库。实际执行中，原定需求里有几项被我按授权范围取消了：它们需要重新训练，不属于这一轮该做的事。</p>
+  <div class="callout tool"><span class="label">一个细节</span><p>服务器端 AI 在做权重审计时，发现需求单里“用名字是否包含 norm 来判断 LayerNorm”的写法，会漏掉两个模块。它没有照着规格执行，而是改为按实际模块类型分类，并在交付回复里写明了这个偏差。<strong>交接文件里留出“说明偏差”的位置，比要求对方严格照做更重要。</strong></p></div>
+
+  <h2 id="narrative"><span class="no">08</span>一次叙事重构：从“没有提升”到“基线就位”</h2>
+  <p>海报的第一版是按“结果 → 原因”组织的：标题直接写没有提升，最大的数字是原始模型的分数，最大的一张图是“训练后都没有超过原始模型”。我后来把它整体重构了，原因有三条：</p>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 236" role="img" aria-label="叙事重构：第一版以没有提升开场，评委会问为什么失败；第二版从原理、设计、受控实验、诊断讲到基线和扩容路线，评委会问为什么这样设计">
+        <text x="10" y="24" class="tb">v1 · 结果 → 原因</text>
+        <rect x="10" y="36" width="140" height="44" rx="10" class="risk"/><text x="80" y="63" class="t" style="font-size:12.5px" text-anchor="middle">标题：没有提升</text>
+        <rect x="166" y="36" width="140" height="44" rx="10" class="bx"/><text x="236" y="63" class="t" style="font-size:12.5px" text-anchor="middle">最大的结果数字</text>
+        <rect x="322" y="36" width="140" height="44" rx="10" class="bx"/><text x="392" y="63" class="t" style="font-size:12.5px" text-anchor="middle">对比柱状图</text>
+        <rect x="478" y="36" width="120" height="44" rx="10" class="bx2"/><text x="538" y="63" class="t" style="font-size:12.5px" text-anchor="middle">原因</text>
+        <path d="M151 58 L164 58" class="ln" marker-end="url(#ar)"/><path d="M307 58 L320 58" class="ln" marker-end="url(#ar)"/><path d="M463 58 L476 58" class="ln" marker-end="url(#ar)"/>
+        <text x="750" y="54" class="ts c-risk" text-anchor="end">评委会问：</text><text x="750" y="70" class="ts c-risk" text-anchor="end">为什么失败？</text>
+
+        <text x="10" y="128" class="tb">v2 · 原理 → 设计 → 实验 → 诊断 → 基线 → 路线</text>
+        <g class="t" style="font-size:12px" text-anchor="middle">
+          <rect x="10" y="140" width="80" height="44" rx="10" class="llm"/><text x="50" y="167">原理</text>
+          <rect x="98" y="140" width="80" height="44" rx="10" class="llm"/><text x="138" y="167">设计原则</text>
+          <rect x="186" y="140" width="80" height="44" rx="10" class="bx"/><text x="226" y="167">方法</text>
+          <rect x="274" y="140" width="80" height="44" rx="10" class="bx"/><text x="314" y="167">受控实验</text>
+          <rect x="362" y="140" width="80" height="44" rx="10" class="tool"/><text x="402" y="167">诊断分析</text>
+          <rect x="450" y="140" width="80" height="44" rx="10" class="human"/><text x="490" y="167">基线</text>
+          <rect x="538" y="140" width="80" height="44" rx="10" class="bx"/><text x="578" y="167">扩容路线</text>
+        </g>
+        <text x="750" y="158" class="ts c-tool" text-anchor="end">评委会问：</text><text x="750" y="174" class="ts c-tool" text-anchor="end">为什么这样设计？</text>
+        <path d="M392 82 Q 450 108 490 138" class="ln-human dash" marker-end="url(#ar-human)"/>
+        <text x="462" y="104" class="ts c-human">结果从主角变成第 6 步的参照</text>
+        <text x="10" y="218" class="tm">数字照实给出、写明“不高于原始模型”，但放在它真正的位置上：后续扩容实验的基线。</text>
+      </svg>
+    </div>
+    <figcaption><b>图 5　同样的数据，两种讲法。</b>重构不是为了掩盖结果，而是因为权重审计证明了第一轮还没有检验假设。把它当成结论来讲，等于替后续研究提前下了判断。</figcaption>
+  </figure>
+  <div class="cards three">
+    <div class="card"><span class="tag">1 · 重点放错了</span><h4>真正完成的是框架</h4><p>预处理、两种无标签任务、三轮单变量实验、防数据泄漏的评估和诊断，这些才是主要工作，却被当成了铺垫。</p></div>
+    <div class="card"><span class="tag">2 · 结论下早了</span><h4>假设还没被检验</h4><p>编码器几乎没有被更新，所以结果只能说明“流程跑通了、基线建立了”，不能说明“自监督无效”。</p></div>
+    <div class="card"><span class="tag">3 · 不利于问答</span><h4>开场决定问题走向</h4><p>以负结果开场，问题会集中在“为什么失败”；以设计原理开场，问题会集中在“为什么这样设计”，后者才能体现理解深度。</p></div>
+  </div>
+  <p>措辞上我也给自己定了规则：</p>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>改用</th><th>不再用</th></tr></thead>
+      <tbody>
+        <tr><td>基线、第一轮、与基线相当、不高于基线</td><td>“没有提升”作标题、“失败”、“负结果”作头条</td></tr>
+        <tr><td>支持某种风险、与某种解释相容</td><td>“证明了原因”、“找到了唯一原因”</td></tr>
+        <tr><td>在这次配置下未显示稳定收益</td><td>“这种方法无效”</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="roadmap"><span class="no">09</span>扩容路线：只改规模，其他都不动</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 170" role="img" aria-label="扩容路线：当前框架与基线就位，下一步调整数值精度，然后按新流程重训核心集，再逐级扩大数据规模；每一级的初始权重、验证集和测试协议保持不变">
+        <rect x="10" y="20" width="168" height="62" rx="10" class="human"/><text x="24" y="44" class="ts tmono c-human">已完成</text><text x="24" y="66" class="tb" style="font-size:13px">框架 + 基线</text>
+        <rect x="196" y="20" width="168" height="62" rx="10" class="bx"/><text x="210" y="44" class="ts tmono">下一步</text><text x="210" y="66" class="tb" style="font-size:13px">数值精度调整</text>
+        <rect x="382" y="20" width="168" height="62" rx="10" class="bx"/><text x="396" y="44" class="ts tmono">第二步</text><text x="396" y="66" class="tb" style="font-size:13px">核心集按新流程重训</text>
+        <rect x="568" y="20" width="182" height="62" rx="10" class="bx"/><text x="582" y="44" class="ts tmono">之后</text><text x="582" y="66" class="tb" style="font-size:13px">逐级扩大数据规模</text>
+        <path d="M179 51 L194 51" class="ln" marker-end="url(#ar)"/><path d="M365 51 L380 51" class="ln" marker-end="url(#ar)"/><path d="M551 51 L566 51" class="ln" marker-end="url(#ar)"/>
+        <rect x="10" y="102" width="740" height="56" rx="10" class="bx2"/>
+        <text x="24" y="124" class="ts tmono">每一级都固定</text>
+        <text x="24" y="145" class="t" style="font-size:12.5px">同一官方初始权重 · 固定验证集 · 同一测试协议 · 四类读数：分类、跨序列匹配、权重更新、嵌入结构</text>
+      </svg>
+    </div>
+    <figcaption><b>图 6　扩容路线。</b>新增数据优先选非肿瘤的成人和神经退行性病例，以贴近评估任务。正式扩容之前，要先完成来源审计、跨库身份去重、验证集冻结和质控门槛，这些都写进了方案，但还没有启动。</figcaption>
+  </figure>
+
+  <h2 id="levels"><span class="no">10</span>结论分等级</h2>
+  <p>在报告里，我把每一条结论按证据强度分成四级，避免“有线索”被读成“已确认”：</p>
+  <div class="cards">
+    <div class="card tool"><span class="tag">已确认</span><p>流程可以端到端运行；编码器的各层都能被更新；特征提取的错误已经修正；预定的 A/B 对照和下游评估已经完成；当前配置下没有显示出稳定的分类收益。</p></div>
+    <div class="card llm"><span class="tag">有线索</span><p>v2 的后期泛化在变差；优化的收益可能没有进入原始表征，或者在全局平均池化时被稀释掉了。</p></div>
+    <div class="card risk"><span class="tag">未确认</span><p>显著退化；方法之间等效；这个基础模型不适合 MRI；跨序列学习无效；增加训练轮数一定没用。</p></div>
+    <div class="card"><span class="tag">尚缺</span><p>同一空间下的训练与验证诊断；严格的序列和区域消融；多个预训练种子；独立的外部验证。</p></div>
+  </div>
+
+  <h2 id="summary"><span class="no">11</span>小结</h2>
+  <ol class="takeaways">
+    <li>先列难点，再定原则，最后才选做法。每一个设计决定都应该能追溯到一个具体的难点。</li>
+    <li>小样本评估必须用重复划分。单次划分得到的“提升”，很可能只是一次运气。</li>
+    <li>“损失下降但表征不变”是一个信号，不是结论。顺着它追下去，一个模糊的负结果就变成了一个可以修正的工程问题。</li>
+    <li>AI 协作可以按数据访问边界来分工；数字只从机器可读的文件中读取，交接文件要给“说明偏差”留出位置。</li>
+    <li>讲法和结果同样重要。在合适的位置如实给出数字，并分级写清楚哪些已经确认、哪些还只是线索。</li>
+  </ol>
+
+  <div class="skillbar"><b>这个作品体现的能力</b>
+    <div class="pills"><span class="pill acc">科研实验设计</span><span class="pill acc">诊断与归因</span><span class="pill">自监督学习</span><span class="pill">医学影像预处理</span><span class="pill">双 AI 协作</span><span class="pill">科研汇报与叙事</span></div>
+  </div>
+
+  <p class="note">本文为个人研究课题的方法复盘。数据来自公开数据集，评估队列只引用汇总结果，不包含任何影像或受试者信息；本文只介绍工作内容和方法，不公开具体实验数值；图 1 为示意图，非真实影像。</p>
+
+  <nav class="postnav">
+    <a href="03-verification-agent-framework.html"><small>← 上一篇</small><span>受约束的 Agent Harness 设计</span></a>
+    <a class="next" href="05-resume-agent-five-routes.html"><small>下一篇 →</small><span>同一个求职问题的五种 AI 解法</span></a>
+  </nav>
+</article>
+
+<aside class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#principle">一个大脑，三种视角</a></li>
+    <li><a href="#principles">难点与设计原则</a></li>
+    <li><a href="#method">方法与标签边界</a></li>
+    <li><a href="#experiments">受控实验</a></li>
+    <li><a href="#diagnosis">诊断：权重审计</a></li>
+    <li><a href="#engineering">预处理工程</a></li>
+    <li><a href="#handoff">双 AI 交接</a></li>
+    <li><a href="#narrative">叙事重构</a></li>
+    <li><a href="#roadmap">扩容路线</a></li>
+    <li><a href="#levels">结论分等级</a></li>
+    <li><a href="#summary">小结</a></li>
+  </ol>
+</aside>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <span>© 2026 Yu Dian · 文章与插图以 CC BY 4.0 提供</span>
+    <span><a href="https://github.com/evelyn77yu">GitHub</a> · <a href="https://evelyn77yu.github.io">主页</a></span>
+  </div>
+</footer>
+</body>
+</html>

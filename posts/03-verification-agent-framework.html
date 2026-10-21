@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>受约束的 Agent Harness · AI Engineering Notes</title>
+<meta name="description" content="在芯片硅前验证这种要求可追溯、可签核的流程里设计 LLM Agent：三层职责、五模块框架、决策路由、降级链、Trace 归因与以人工接受率为核心的评估。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="受约束的 Agent Harness · AI Engineering Notes">
+<meta property="og:description" content="在芯片硅前验证这种要求可追溯、可签核的流程里设计 LLM Agent：三层职责、五模块框架、决策路由、降级链、Trace 归因与以人工接受率为核心的评估。">
+<meta property="og:url" content="https://evelyn77yu.github.io/ai-engineering-blog/posts/03-verification-agent-framework.html">
+<meta property="og:image" content="https://evelyn77yu.github.io/ai-engineering-blog/assets/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23171925'/%3E%3Ctext x='32' y='41' font-family='monospace' font-size='26' font-weight='700' fill='%23fde68a' text-anchor='middle'%3EYD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true"><defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk"/></marker>
+  <marker id="ar-llm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-llm"/></marker>
+  <marker id="ar-tool" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-tool"/></marker>
+  <marker id="ar-human" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-human"/></marker>
+  <marker id="ar-risk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-risk"/></marker>
+</defs></svg>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-mark">YD</span><span class="brand-text">AI Engineering Notes</span></a>
+    <nav class="nav-links">
+      <a href="../index.html#works">作品</a>
+      <a href="../index.html#principles">判断原则</a>
+      <a href="../index.html#map">能力地图</a>
+      <a href="https://evelyn77yu.github.io">主页 ↗</a>
+    </nav>
+  </div>
+</header>
+
+<section class="post-hero">
+  <div class="wrap">
+    <div class="crumbs"><a href="../index.html">作品集</a> / 03 · Agent Harness</div>
+    <h1>受约束的 Agent Harness 设计：让 LLM 进入需要签核的芯片验证流程</h1>
+    <p class="lede">芯片功能验证通常要占到 SoC 开发周期的一半以上，而且它的每一项产物都必须能追溯、能签核。我为这个场景设计了一套受约束的 Agent Harness，也就是包在模型外面的那层运行框架：约束、工具、记录和评估都在这一层。我先调研了公开的研究方案，再提出五模块架构和分阶段路线；其中第一阶段，也就是验证计划的自动化闭环，已经落地。这篇整理的是其中可以公开的部分：设计取向和方法论。</p>
+    <p class="postinfo">阅读约 8 分钟 · 更新于 2026 年 10 月 21 日</p>
+    <dl class="meta">
+      <div><dt>领域</dt><dd>芯片硅前验证 · EDA 流程</dd></div>
+      <div><dt>我的角色</dt><dd>架构设计 · 方案调研 · 一期实现</dd></div>
+      <div><dt>范围</dt><dd>5 个模块 · 4 个阶段</dd></div>
+      <div><dt>关键词</dt><dd>工具调用 · 人工审核 · 运行治理</dd></div>
+    </dl>
+  </div>
+</section>
+
+<div class="layout">
+<article class="prose">
+
+  <section class="pitch"><span class="label">30 秒版本</span><p>我为芯片硅前验证设计了一套受约束的 Agent Harness。这个场景的产物必须可追溯、可签核，所以我把目标从“尽可能自主”换成了“尽可能可靠”：LLM 只决定下一步做什么，编译、仿真和校验交给确定性工具，关键节点由工程师审核。框架分五个模块、四个阶段推进，第一阶段的验证计划自动化闭环已经落地。评估上，我更看重工程师的接受率和修改率，而不是生成成功率。</p></section>
+
+  <div class="tldr">
+    <div><h4>背景</h4><p>验证工作的产物层层引用，执行环境强依赖专业工具链，出错代价也很高：一个错误的检查器可能产生虚假的覆盖结论，直接带来签核风险。</p></div>
+    <div><h4>我做了什么</h4><p>对比了 4 个公开研究方案和主要 EDA 厂商的方向，提出“LLM 决策 + 工具执行 + 工程师审查”的五模块 Harness。第一阶段完成了验证计划的自动生成与同步闭环。</p></div>
+    <div><h4>关键判断</h4><p>把目标从“尽可能自主”换成“尽可能可靠”。能被精确描述的动作不交给 LLM，失败路径要在设计阶段就定下来。</p></div>
+    <div><h4>结果</h4><p>得到一套可以落地的设计方法：三层职责、决策路由、降级链、可分层归因的执行记录（Trace），以及以人工接受率为核心的评估口径。</p></div>
+  </div>
+
+  <h2 id="stance"><span class="no">01</span>先选取向：自主优先，还是可靠优先</h2>
+  <p>很多 Agent 项目失败，原因不在模型能力，而在目标设定。Demo 阶段的默认目标是“让 Agent 尽可能自主”；可一旦进入需要签核的工程流程，问题就变成了：<strong>在结果必须可追溯的流程里，怎样让 LLM 参与进来，又不引入不可控的风险？</strong>这两种目标导向的设计方向几乎完全相反：</p>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th></th><th>自主优先</th><th>可靠优先（本框架）</th></tr></thead>
+      <tbody>
+        <tr><td>关键动作由谁执行</td><td>LLM 直接生成</td><td class="hl">确定性工具执行</td></tr>
+        <tr><td>出错怎么办</td><td>让模型自我纠正</td><td class="hl">有限重试 → 降级 → 人工</td></tr>
+        <tr><td>什么算成功</td><td>任务完成</td><td class="hl">任务完成，并且可追溯、可复现</td></tr>
+        <tr><td>人的角色</td><td>出了问题再兜底</td><td class="hl">关键节点的强制审查环节</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="domain"><span class="no">02</span>为什么验证领域尤其需要约束</h2>
+  <div class="cards three">
+    <div class="card alt"><span class="tag">产物结构</span><h4>层层引用的工程产物</h4><p>验证计划、设计代码、测试平台、仿真日志和覆盖率数据库之间，有层级关系、引用关系和语义关联。</p></div>
+    <div class="card tool"><span class="tag">执行环境</span><h4>离不开专业工具链</h4><p>编译器、仿真器、覆盖率工具、回归系统和企业模板承担的功能，靠生成文本替代不了。</p></div>
+    <div class="card risk"><span class="tag">错误代价</span><h4>错一处，签核就有风险</h4><p>测试、检查器或覆盖率解读里的一个错误，就可能造成虚假的覆盖结论和错误的归因。</p></div>
+  </div>
+  <p>LLM 擅长的是理解目标、组织上下文、选择工具和解释结果。所以我给这个框架定的核心目标，是<strong>把 LLM 嵌进一个可审计、可复现、可以持续改进的验证闭环</strong>，而不是比谁生成的验证代码更多。</p>
+
+  <h3>六条工程准则</h3>
+  <p>这套 Harness 不是把能力堆到一个模型身上，而是一组受工程规范约束的机制。动手设计之前，我先定了六条准则：</p>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>准则</th><th>要解决什么</th><th>在设计里怎么体现</th></tr></thead>
+      <tbody>
+        <tr><td>确定性优先</td><td>减少模型幻觉和错误传播</td><td>关键操作由确定性工具执行，LLM 负责决策和解释</td></tr>
+        <tr><td>结构约束</td><td>产物能被下游工具直接使用</td><td>格式校验、接口规范、引用一致性检查</td></tr>
+        <tr><td>可审计</td><td>能追溯，能支撑签核</td><td>执行记录、工具日志、版本控制和修改历史</td></tr>
+        <tr><td>问题驱动</td><td>不为了用 Agent 而用 Agent</td><td>优先解决验证计划、测试、调试和覆盖率收敛这几个真实痛点</td></tr>
+        <tr><td>可评估</td><td>能持续改进</td><td>基准集、指标看板、人工验收统计</td></tr>
+        <tr><td>可控的人工介入</td><td>工程师保留最终判断权</td><td>里程碑节点强制审核，异常时升级给人</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>常见的 Agent 机制，各放在什么位置</h3>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>机制</th><th>作用</th><th>在这套框架里的定位</th></tr></thead>
+      <tbody>
+        <tr><td>规划</td><td>任务分解</td><td>贯穿全流程；分解得越细，人工审核越可控</td></tr>
+        <tr><td>工具调用</td><td>核心执行</td><td>编译、仿真、解析这些关键操作全部经由工具完成</td></tr>
+        <tr><td>ReAct</td><td>动态调整</td><td>根据实时日志和报错信息决定下一步</td></tr>
+        <tr><td>反思</td><td>纠错</td><td>结合执行记录，修正结构、编译或策略层面的错误</td></tr>
+        <tr><td>多 Agent</td><td>协作</td><td>只用于需要不同角色相互把关的高风险任务</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>两张表合起来，意思是<strong>语义理解放开，执行过程收紧</strong>。这样做短期内会降低系统的自主程度，但换来的是可以量化评估，也为以后安全地扩展能力留出了空间。</p>
+
+  <h2 id="layers"><span class="no">03</span>地基：三层职责划分</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 330" role="img" aria-label="三层职责：LLM 只决定下一步做什么，确定性工具产出结果，工程师在关键节点审查；三层的事件都写入执行记录">
+        <rect x="40" y="20" width="520" height="70" rx="12" class="llm"/>
+        <text x="60" y="48" class="tb c-llm">LLM 决策层</text>
+        <text x="60" y="70" class="t">理解目标 · 组织上下文 · 选择工具 · 解释结果</text>
+        <text x="540" y="48" class="ts" text-anchor="end">不确定性被圈在这一层</text>
+
+        <rect x="40" y="130" width="520" height="70" rx="12" class="tool"/>
+        <text x="60" y="158" class="tb c-tool">确定性工具层</text>
+        <text x="60" y="180" class="t">编译 · 仿真 · 日志解析 · 结构校验 · 覆盖率读取</text>
+        <text x="540" y="158" class="ts" text-anchor="end">结果天然可重放</text>
+
+        <rect x="40" y="240" width="520" height="70" rx="12" class="human"/>
+        <text x="60" y="268" class="tb c-human">工程师审查层</text>
+        <text x="60" y="290" class="t">里程碑审查 · 异常升级 · 最终签核</text>
+        <text x="540" y="268" class="ts" text-anchor="end">只保留需要判断力的检查点</text>
+
+        <path d="M200 92 L200 128" class="ln-llm" marker-end="url(#ar-llm)"/>
+        <text x="210" y="115" class="ts c-llm">调用：下一步做什么</text>
+        <path d="M420 128 L420 92" class="ln-tool" marker-end="url(#ar-tool)"/>
+        <text x="430" y="115" class="ts c-tool">结构化结果 + 错误类型</text>
+        <path d="M200 202 L200 238" class="ln-tool" marker-end="url(#ar-tool)"/>
+        <text x="210" y="225" class="ts c-tool">产物 + 校验报告</text>
+        <path d="M38 275 L22 275 L22 55 L36 55" class="ln-human" marker-end="url(#ar-human)"/>
+        <text x="30" y="166" class="ts c-human" transform="rotate(-90 30 166)" text-anchor="middle">批准 · 驳回 · 升级</text>
+
+        <rect x="600" y="20" width="140" height="290" rx="12" class="zone"/>
+        <text x="670" y="46" class="tb" text-anchor="middle">执行记录</text>
+        <g class="tm" text-anchor="middle">
+          <text x="670" y="80">输入与版本</text><text x="670" y="106">执行计划</text><text x="670" y="132">工具调用摘要</text><text x="670" y="158">状态迁移</text><text x="670" y="184">重试次数</text><text x="670" y="210">校验结果</text><text x="670" y="236">人工决策</text>
+        </g>
+        <text x="670" y="290" class="ts" text-anchor="middle">恢复 · 审计 · 回放</text>
+        <path d="M562 55 L598 55" class="ln dash" marker-end="url(#ar)"/>
+        <path d="M562 165 L598 165" class="ln dash" marker-end="url(#ar)"/>
+        <path d="M562 275 L598 275" class="ln dash" marker-end="url(#ar)"/>
+      </svg>
+    </div>
+    <figcaption><b>图 1　三层职责。</b>LLM 输出的是“下一步做什么”，而不是“结果是什么”；真正的结果由确定性工具产出；人只保留需要判断力的检查点。三层的事件全部写进执行记录。</figcaption>
+  </figure>
+  <p>划分的逻辑是<strong>把不确定性圈在模型层</strong>。反过来设计也是可以的：让 LLM 直接生成关键产出，再由人逐条复核。但那样人很快就被用成了人工流水线，系统又退回到自动化之前的样子。</p>
+
+  <h2 id="modules"><span class="no">04</span>五模块框架与分阶段路线</h2>
+  <p>框架沿着验证流程展开成五个模块，推进节奏是三个“先……再……”：先建立可信的结构，再扩展生成能力；先在本地把工具闭环跑通，再接入云端和 CI/CD；先做局部的测试生成，再去做覆盖率收敛。</p>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 300" role="img" aria-label="五模块框架：需求进入 M1 验证计划、M2 测试生成、M3 仿真调试、M4 覆盖率收敛，M5 评估与人工审核贯穿全程；M1 已落地，其余按四个阶段推进">
+        <rect x="10" y="40" width="82" height="96" rx="10" class="bx2"/>
+        <text x="51" y="84" class="tb" text-anchor="middle">需求</text><text x="51" y="104" class="ts" text-anchor="middle">规格 · 变更</text>
+        <path d="M93 88 L108 88" class="ln" marker-end="url(#ar)"/>
+
+        <rect x="110" y="40" width="140" height="96" rx="10" class="tool"/>
+        <text x="124" y="60" class="ts tmono">M1</text><text x="124" y="80" class="tb">验证计划</text>
+        <text x="124" y="99" class="ts">需求 → 层级计划</text><text x="124" y="114" class="ts">与代码库同步</text>
+        <rect x="190" y="50" width="52" height="18" rx="9" class="fill-tool"/><text x="216" y="63" font-size="10.5" fill="#fff" text-anchor="middle">已落地</text>
+        <path d="M251 88 L266 88" class="ln" marker-end="url(#ar)"/>
+
+        <rect x="268" y="40" width="140" height="96" rx="10" class="bx"/>
+        <text x="282" y="60" class="ts tmono">M2</text><text x="282" y="80" class="tb">测试生成</text>
+        <text x="282" y="99" class="ts">序列 · 约束 · 检查器</text><text x="282" y="114" class="ts">先可编译再扩展</text>
+        <path d="M409 88 L424 88" class="ln" marker-end="url(#ar)"/>
+
+        <rect x="426" y="40" width="140" height="96" rx="10" class="bx"/>
+        <text x="440" y="60" class="ts tmono">M3</text><text x="440" y="80" class="tb">仿真调试</text>
+        <text x="440" y="99" class="ts">日志 → 结构化事件</text><text x="440" y="114" class="ts">区分测试/环境/设计</text>
+        <path d="M567 88 L582 88" class="ln" marker-end="url(#ar)"/>
+
+        <rect x="584" y="40" width="140" height="96" rx="10" class="bx"/>
+        <text x="598" y="60" class="ts tmono">M4</text><text x="598" y="80" class="tb">覆盖率收敛</text>
+        <text x="598" y="99" class="ts">找出未覆盖的原因</text><text x="598" y="114" class="ts">提出定向测试</text>
+
+        <path d="M654 138 L654 152 L338 152 L338 140" class="ln-llm dash" marker-end="url(#ar-llm)"/>
+        <text x="496" y="147" class="ts c-llm" text-anchor="middle">未覆盖项 → 定向测试建议</text>
+
+        <rect x="110" y="166" width="614" height="52" rx="10" class="human"/>
+        <text x="126" y="188" class="tb">M5 · 评估与人工审核</text>
+        <text x="126" y="207" class="ts">按任务类型划分基准集 · 提示/工具/模板改动先回归 · 记录工程师的接受、修改与拒绝</text>
+
+        <g class="ts" text-anchor="middle">
+          <rect x="110" y="238" width="140" height="44" rx="8" class="tool"/><text x="180" y="256" class="tb c-tool" style="font-size:12px">阶段一</text><text x="180" y="273">本地工具闭环</text>
+          <rect x="268" y="238" width="140" height="44" rx="8" class="bx2"/><text x="338" y="256" class="tb" style="font-size:12px">阶段二</text><text x="338" y="273">扩展本地工具</text>
+          <rect x="426" y="238" width="140" height="44" rx="8" class="bx2"/><text x="496" y="256" class="tb" style="font-size:12px">阶段三</text><text x="496" y="273">接入仿真反馈</text>
+          <rect x="584" y="238" width="140" height="44" rx="8" class="bx2"/><text x="654" y="256" class="tb" style="font-size:12px">阶段四</text><text x="654" y="273">云端 + CI/CD</text>
+        </g>
+        <text x="51" y="264" class="ts" text-anchor="middle">推进顺序</text>
+        <path d="M76 260 L106 260" class="ln" marker-end="url(#ar)"/>
+      </svg>
+    </div>
+    <figcaption><b>图 2　五模块框架与四个阶段。</b>绿色是已经落地的部分。M2 到 M4 共用同一条接入路径：任务定义 → 工具封装 → 接入验收；M5 贯穿全程，任何改动都要先过回归。</figcaption>
+  </figure>
+
+  <h2 id="m1"><span class="no">05</span>第一阶段：验证计划的自动化闭环</h2>
+  <p>验证计划是整条流程的起点：它把需求拆成可验证的特性，再挂上对应的测试和覆盖点。原来维护它要靠人工对照需求文档和代码库，需求一变就得逐条同步。第一阶段要解决的就是这件事：</p>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 210" role="img" aria-label="验证计划闭环：LLM 读取上下文并决定调用顺序，工具完成解析、层级生成和代码库匹配，LLM 生成变更报告并解释差异，工程师审查确认后，下次变更再次触发">
+        <g class="ts tmono" text-anchor="middle">
+          <text x="61" y="22" class="c-llm">LLM</text><text x="187" y="22" class="c-tool">工具</text><text x="313" y="22" class="c-tool">工具</text><text x="439" y="22" class="c-tool">工具</text><text x="565" y="22" class="c-llm">LLM</text><text x="691" y="22" class="c-human">工程师</text>
+        </g>
+        <rect x="5" y="32" width="112" height="76" rx="10" class="llm"/>
+        <text x="61" y="64" class="t" text-anchor="middle">读取上下文</text><text x="61" y="84" class="ts" text-anchor="middle">确认任务类型</text>
+        <rect x="131" y="32" width="112" height="76" rx="10" class="tool"/>
+        <text x="187" y="64" class="t" text-anchor="middle">解析需求</text><text x="187" y="84" class="ts" text-anchor="middle">合并新增与变更</text>
+        <rect x="257" y="32" width="112" height="76" rx="10" class="tool"/>
+        <text x="313" y="64" class="t" text-anchor="middle">生成层级结构</text><text x="313" y="84" class="ts" text-anchor="middle">模块→子系统→芯片</text>
+        <rect x="383" y="32" width="112" height="76" rx="10" class="tool"/>
+        <text x="439" y="64" class="t" text-anchor="middle">扫描代码库</text><text x="439" y="84" class="ts" text-anchor="middle">匹配测试与覆盖点</text>
+        <rect x="509" y="32" width="112" height="76" rx="10" class="llm"/>
+        <text x="565" y="64" class="t" text-anchor="middle">变更报告</text><text x="565" y="84" class="ts" text-anchor="middle">解释每一处差异</text>
+        <rect x="635" y="32" width="112" height="76" rx="10" class="human"/>
+        <text x="691" y="64" class="t" text-anchor="middle">审查确认</text><text x="691" y="84" class="ts" text-anchor="middle">匹配结果与例外</text>
+        <path d="M118 70 L129 70" class="ln" marker-end="url(#ar)"/><path d="M244 70 L255 70" class="ln" marker-end="url(#ar)"/><path d="M370 70 L381 70" class="ln" marker-end="url(#ar)"/><path d="M496 70 L507 70" class="ln" marker-end="url(#ar)"/><path d="M622 70 L633 70" class="ln" marker-end="url(#ar)"/>
+        <path d="M691 110 L691 150 L61 150 L61 112" class="ln-human dash" marker-end="url(#ar-human)"/>
+        <text x="376" y="170" class="tm" text-anchor="middle">需求变更或有新的测试提交时，再次触发</text>
+        <rect x="257" y="182" width="238" height="22" rx="11" class="bx2"/>
+        <text x="376" y="197" class="ts" text-anchor="middle">结构转换全部由脚本完成，LLM 不直接改计划</text>
+      </svg>
+    </div>
+    <figcaption><b>图 3　验证计划闭环中的分工。</b>Agent 决定调用顺序、解释差异；工具完成解析和比对；工程师确认匹配结果和例外情况。产物要过结构校验才能交给下游工具使用。</figcaption>
+  </figure>
+  <p>这一步看起来“不够智能”，却是有意为之的：<strong>先保证结构可信，生成能力才有地方落脚</strong>。如果验证计划本身是靠模型自由生成的，后面每一个模块都要先怀疑它的输入。</p>
+
+  <h2 id="contract"><span class="no">06</span>下游模块的统一接入：工具接口规范</h2>
+  <p>测试生成、仿真调试和覆盖率收敛三个模块走同一条接入路径：<strong>任务定义 → 工具封装 → 接入验收</strong>。每一个工具除了输入输出，还必须定义下面这些项。最容易被忽略的是错误类型：</p>
+  <div class="cards">
+    <div class="rulecard">
+      <header><span>接口规范 · 必填项</span><span>接入前验收</span></header>
+      <ul><li>输入参数与输出字段</li><li><strong>错误类型</strong>（可枚举的分类）</li><li>超时策略，以及是否允许重试</li><li>产物路径与回滚方式</li></ul>
+    </div>
+    <div class="rulecard">
+      <header><span>失败时返回什么</span><span class="ok">结构化</span></header>
+      <ul><li>状态：失败</li><li>错误类型：未定义的信号</li><li>位置：哪个文件、第几行</li><li>相关产物：编译日志</li></ul>
+    </div>
+  </div>
+  <div class="callout"><span class="label">判断</span><p>不要把几千行原始日志直接扔给模型，而要返回带错误类型的结构化结果。<strong>工具的输出格式，实际上决定了 Agent 的决策精度。</strong></p></div>
+  <div class="cards three">
+    <div class="card"><span class="tag">M2 · 测试生成</span><h4>先搭框架、先能编译</h4><p>查询设计和测试平台的接口，生成序列、约束、检查器和覆盖框架；然后调用编译，按差异做局部修复。</p></div>
+    <div class="card"><span class="tag">M3 · 仿真调试</span><h4>先归类，再建议</h4><p>把报错、致命错误、断言和超时转成结构化事件，区分问题出在测试、验证环境还是设计本身。高风险的修复要人确认。</p></div>
+    <div class="card"><span class="tag">M4 · 覆盖率收敛</span><h4>找原因，而不是数数字</h4><p>提取未覆盖项，结合设计信息分析原因，再提出定向测试或约束调整。最终结果由仿真和覆盖率工具确认。</p></div>
+  </div>
+
+  <h2 id="routing"><span class="no">07</span>决策路由与降级链</h2>
+  <p>不要一上来就设计 Agent，先把流程拆开。拆成节点以后，每个节点归入四类路由之一；而失败路径要在设计阶段就写成逐级降级的链条：</p>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 300" role="img" aria-label="左侧：每个流程节点被路由到确定性脚本、校验规则、Agent 动态判断或人工确认之一。右侧：失败路径按有限重试、备用通道、降级运行、人工兜底逐级处理">
+        <rect x="16" y="122" width="96" height="56" rx="10" class="bx2"/>
+        <text x="64" y="146" class="tb" text-anchor="middle">流程节点</text><text x="64" y="165" class="ts" text-anchor="middle">逐个归类</text>
+        <rect x="150" y="16" width="232" height="56" rx="10" class="tool"/>
+        <text x="164" y="40" class="tb">确定性脚本</text><text x="164" y="60" class="ts">动作可以被精确描述</text>
+        <rect x="150" y="86" width="232" height="56" rx="10" class="tool"/>
+        <text x="164" y="110" class="tb">校验规则</text><text x="164" y="130" class="ts">结果可以被判定对错</text>
+        <rect x="150" y="156" width="232" height="56" rx="10" class="llm"/>
+        <text x="164" y="180" class="tb">Agent 动态判断</text><text x="164" y="200" class="ts">需要理解语义、依据实时反馈</text>
+        <rect x="150" y="226" width="232" height="56" rx="10" class="human"/>
+        <text x="164" y="250" class="tb">人工确认</text><text x="164" y="270" class="ts">高风险 · 不可逆 · 需要签核</text>
+        <path d="M113 140 L148 46" class="ln" marker-end="url(#ar)"/><path d="M113 146 L148 114" class="ln" marker-end="url(#ar)"/><path d="M113 154 L148 184" class="ln" marker-end="url(#ar)"/><path d="M113 160 L148 252" class="ln" marker-end="url(#ar)"/>
+
+        <line x1="414" y1="16" x2="414" y2="284" class="grid"/>
+        <text x="440" y="30" class="tb">失败路径 · 设计期确定</text>
+        <rect x="440" y="44" width="300" height="44" rx="10" class="bx"/><text x="456" y="71" class="t">① 有限次重试</text><text x="726" y="71" class="ts" text-anchor="end">仅限可重试的错误类型</text>
+        <rect x="440" y="110" width="300" height="44" rx="10" class="bx"/><text x="456" y="137" class="t">② 备用通道</text><text x="726" y="137" class="ts" text-anchor="end">换工具或换路径</text>
+        <rect x="440" y="176" width="300" height="44" rx="10" class="risk"/><text x="456" y="203" class="t">③ 降级运行</text><text x="726" y="203" class="ts" text-anchor="end">例如只做静态检查</text>
+        <rect x="440" y="242" width="300" height="44" rx="10" class="human"/><text x="456" y="269" class="t">④ 人工兜底</text><text x="726" y="269" class="ts" text-anchor="end">带着完整轨迹升级</text>
+        <path d="M590 90 L590 108" class="ln-risk" marker-end="url(#ar-risk)"/><path d="M590 156 L590 174" class="ln-risk" marker-end="url(#ar-risk)"/><path d="M590 222 L590 240" class="ln-risk" marker-end="url(#ar-risk)"/>
+        <text x="600" y="103" class="ts c-risk">仍失败</text><text x="600" y="169" class="ts c-risk">仍失败</text><text x="600" y="235" class="ts c-risk">仍失败</text>
+      </svg>
+    </div>
+    <figcaption><b>图 4　先路由，再谈 Agent。</b>这个分类把“该不该用 LLM”的争论，变成了逐个节点填表的机械动作。降级不是妥协，而是一个设计决策：一个明确“只能降级到静态检查”的系统，比“无限重试直到崩掉”的系统可靠得多。</figcaption>
+  </figure>
+  <div class="callout"><span class="label">判断</span><p>一句话的判断标准：<strong>能被精确描述的动作，就不该交给 LLM。</strong>把所有步骤不加区分地交给 Agent，是从演示走向生产时最常见的失败原因。</p></div>
+
+  <h2 id="trace"><span class="no">08</span>执行记录与分层归因</h2>
+  <p>结果出现异常时，不要笼统地说“模型能力不行”，归因要落到具体某一层：</p>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>归因层</th><th>典型症状</th></tr></thead>
+      <tbody>
+        <tr><td>模型推理</td><td>计划本身不合理，任务分解的粒度不对</td></tr>
+        <tr><td>上下文注入</td><td>关键信息没有传进去，或者传了过期的版本</td></tr>
+        <tr><td>工具实现</td><td>接口有缺陷，返回值不符合接口约定</td></tr>
+        <tr><td>下游依赖</td><td>外部系统超时，或者返回格式变了</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p><strong>能不能定位到具体哪一层出了问题，决定了运维的效率。</strong>健康度除了看成功率，还要盯平均执行步数和成本这两个非百分比指标。成功率没有降，步数却翻了一倍，通常意味着系统正在靠重试掩盖某个缺陷。</p>
+
+  <h2 id="eval"><span class="no">09</span>评估：人工接受率比成功率可信</h2>
+  <p>评估体系由三部分组成：基准集回归测试（任何改动之后先跑一遍固定样本，防止悄悄退化）、指标看板，以及人工接受情况的统计。最后这一项值得展开说：</p>
+  <div class="callout"><span class="label">判断</span><p>“生成成功率”是一个可以被优化出来的数字，“人工接受率”不是。系统可以把产出做得越来越完整，可如果工程师每次都要大改，它的实际价值是负的。</p></div>
+  <p>所以要同时统计四个指标：生成成功率、人工接受率、人工修改率、升级到人工的比例，四者组合起来才能反映真实的可用性。同理，提示词、工具、模板和模型的任何改动都应该触发回归。<strong>大多数 Agent 系统不是突然崩溃的，而是在一次次小改动里悄悄退化的。</strong>上线之后，还需要灰度发布和回滚能力作为最后一道保险。</p>
+
+  <h2 id="multi"><span class="no">10</span>什么时候才拆 Multi-Agent</h2>
+  <p>默认形态是“单 Agent + 工具闭环”，因为它更好控制、更好审计、也更好评估。只有出现客观的职责冲突信号时，才考虑拆分：</p>
+  <div class="cards three">
+    <div class="card"><span class="tag">信号 1</span><h4>执行链过长</h4><p>单个 Agent 的上下文开始遗忘早期决策，分阶段总结也压不住。</p></div>
+    <div class="card"><span class="tag">信号 2</span><h4>任务互相阻塞</h4><p>生成和调试需要并行推进，串在一条链上会卡住。</p></div>
+    <div class="card"><span class="tag">信号 3</span><h4>需要独立审查</h4><p>高风险产出必须由“不是作者本人”的角色复核。</p></div>
+  </div>
+  <p>拆分时的纪律：沿用同一套工具层和执行记录机制，不要每个角色各建一套；角色之间的交接用结构化内容，不用自然语言转述；引入审查角色时，要能验证“审查是否真的发现了问题”，而不是走过场。<strong>Multi-Agent 解决的是职责冲突，不是任务复杂度。</strong></p>
+
+  <h2 id="refs"><span class="no">11</span>借鉴了什么</h2>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>公开方案</th><th>可借鉴的要点</th><th>对应模块</th></tr></thead>
+      <tbody>
+        <tr><td>AutoBench</td><td>测试生成要同时包含激励、检查器和自动评估，而不能只生成激励</td><td>M2</td></tr>
+        <tr><td>VerilogCoder</td><td>规划 + 工具反馈 + 结构化观测 + 局部修复：从“一次生成”走向“观察、修正、再执行”</td><td>M2 · M3</td></tr>
+        <tr><td>FVEval</td><td>把验证能力拆成可度量的分层任务，界定能力边界</td><td>M5</td></tr>
+        <tr><td>Saarthi</td><td>收敛闭环、角色分工、关键节点上的人工介入</td><td>M2–M5</td></tr>
+        <tr><td>EDA 厂商公开方向</td><td>验证空间优化、覆盖率收敛、调试辅助、部署形态</td><td>M3 · M4 · 路线</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="boundary"><span class="no">12</span>明确不下的结论</h2>
+  <p>一份可信的设计文档，要说明自己<strong>没有</strong>得出哪些结论。这套框架只覆盖设计原则和机制，不对生成成功率、覆盖率提升、修复效果或效率收益下任何量化结论，这些都要靠模块级和端到端实验去验证。下一步要做的，是建立人工操作的基线，构建由资深验证工程师标注的基准集，并设计权限控制和安全沙箱，确保 Agent 生成的代码只有通过校验才能进入正式代码仓库。</p>
+  <div class="callout risk"><span class="label">边界</span><p>一个把所有指标都报得很好看的方案，通常意味着它还没有进过真实的生产环境。</p></div>
+
+  <h2 id="summary"><span class="no">13</span>小结</h2>
+  <ol class="takeaways">
+    <li>可靠性不是模型问题，而是系统问题。约束、路由、降级、归因，都是在模型之外设计的。</li>
+    <li>能被精确描述的动作不交给 LLM。LLM 输出的是“下一步做什么”，结果由工具产出。</li>
+    <li>先让结构可信，再扩展生成能力；先跑通本地闭环，再接云端和 CI/CD。</li>
+    <li>工具的错误类型决定 Agent 的决策精度；失败路径在设计期确定，而不是在故障时即兴处理。</li>
+    <li>用人工接受率和修改率来评估，任何改动都先过回归；Multi-Agent 只用来解决职责冲突。</li>
+  </ol>
+
+  <div class="skillbar"><b>这个作品体现的能力</b>
+    <div class="pills"><span class="pill acc">Agent Harness 设计</span><span class="pill acc">工具调用与接口设计</span><span class="pill">人工审核机制</span><span class="pill">运行治理与可观测性</span><span class="pill">评估体系设计</span><span class="pill">领域调研</span></div>
+  </div>
+
+  <p class="note">本文为个人方法论整理，已去除全部组织、项目代号、内部工具与业务信息；文中流程为通用化描述，研究方案均引用公开文献。</p>
+
+  <nav class="postnav">
+    <a href="02-prompt-evaluation.html"><small>← 上一篇</small><span>提示策略对照评测的复盘</span></a>
+    <a class="next" href="04-mri-label-free-embedding.html"><small>下一篇 →</small><span>多序列脑 MRI 的无标签表征学习</span></a>
+  </nav>
+</article>
+
+<aside class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#stance">自主还是可靠</a></li>
+    <li><a href="#domain">为什么需要约束</a></li>
+    <li><a href="#layers">三层职责</a></li>
+    <li><a href="#modules">五模块与路线</a></li>
+    <li><a href="#m1">验证计划闭环</a></li>
+    <li><a href="#contract">工具接口规范</a></li>
+    <li><a href="#routing">路由与降级</a></li>
+    <li><a href="#trace">轨迹与归因</a></li>
+    <li><a href="#eval">评估口径</a></li>
+    <li><a href="#multi">何时拆 Multi-Agent</a></li>
+    <li><a href="#refs">借鉴了什么</a></li>
+    <li><a href="#boundary">不下的结论</a></li>
+    <li><a href="#summary">小结</a></li>
+  </ol>
+</aside>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <span>© 2026 Yu Dian · 文章与插图以 CC BY 4.0 提供</span>
+    <span><a href="https://github.com/evelyn77yu">GitHub</a> · <a href="https://evelyn77yu.github.io">主页</a></span>
+  </div>
+</footer>
+</body>
+</html>

@@ -1,0 +1,192 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Engineering Notes · Yu Dian</title>
+<meta name="description" content="Yu Dian 的 AI 工程作品集：双 Agent 协作开发、LLM 评测、芯片验证 Agent 架构、医学影像表征学习和求职 Agent。重点展示设计判断，而不是代码。">
+<meta property="og:type" content="website">
+<meta property="og:title" content="AI Engineering Notes · Yu Dian">
+<meta property="og:description" content="Yu Dian 的 AI 工程作品集：双 Agent 协作开发、LLM 评测、芯片验证 Agent 架构、医学影像表征学习和求职 Agent。重点展示设计判断，而不是代码。">
+<meta property="og:url" content="https://evelyn77yu.github.io/ai-engineering-blog/">
+<meta property="og:image" content="https://evelyn77yu.github.io/ai-engineering-blog/assets/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23171925'/%3E%3Ctext x='32' y='41' font-family='monospace' font-size='26' font-weight='700' fill='%23fde68a' text-anchor='middle'%3EYD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="index.html"><span class="brand-mark">YD</span><span class="brand-text">AI Engineering Notes</span></a>
+    <nav class="nav-links">
+      <a href="#works">作品</a>
+      <a href="#principles">判断原则</a>
+      <a href="#map">能力地图</a>
+      <a href="https://evelyn77yu.github.io">主页 ↗</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <div class="kicker">AI Engineering · 作品集与笔记</div>
+    <h1>让 LLM 在<em>需要负责</em>的流程里可靠地工作</h1>
+    <p class="lede">我是 Yu Dian，NUS AI for Science 硕士在读。这里整理了我做过的五个 AI 工程作品，覆盖 AI 协作开发、模型评测、芯片验证、医学影像和求职 Agent。比起代码，我更想展示每个项目里我是怎么判断的：什么交给模型，什么交给确定性工具，什么必须留给人；以及怎样让一个结论站得住。</p>
+    <div class="hero-actions">
+      <a class="btn primary" href="#works">浏览作品 ↓</a>
+      <a class="btn" href="https://evelyn77yu.github.io">个人主页 ↗</a>
+      <a class="btn" href="https://github.com/evelyn77yu">GitHub ↗</a>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>5</b><span>个作品，5 个应用领域</span></div>
+      <div class="stat"><b>4</b><span>种与 AI 协作的方式：交替开发、跨环境交接、Skill、浏览器内 Agent</span></div>
+      <div class="stat"><b>6</b><span>条反复使用的判断原则</span></div>
+      <div class="stat"><b>25</b><span>张脱敏重绘的示意图</span></div>
+    </div>
+  </section>
+
+  <section class="section" id="works">
+    <div class="section-head">
+      <div><div class="kicker">Works</div><h2>五个作品</h2></div>
+      <p>每篇的结构都一样：一页速览 → 设计与判断 → 出过的问题 → 局限 → 可以复用的经验。</p>
+    </div>
+    <div class="works">
+      <a class="work" href="posts/01-dual-agent-workflow.html">
+        <div class="work-top"><span class="work-no">01 · AI 协作开发</span><span class="pill">前端产品</span></div>
+        <h3>双 Agent 交替开发：规则文件、滚动评审与漂移治理</h3>
+        <p class="hook">一个可视化硬件编程工具，从搭框架到上线，全部由 Claude 与 Codex 交替完成，我负责制定规则并做最终决定。</p>
+        <dl>
+          <dt>做了什么</dt><dd>两份规则文件 · 单文件滚动评审 · 漂移对账 · AI 助手的上下文与成本设计</dd>
+          <dt>关键判断</dt><dd>无法被机械检查的规则约等于没有；两个模型意见一致，不代表它们是对的</dd>
+        </dl>
+        <div class="work-foot"><div class="sig"><b>21 轮</b><span>交替开发与评审</span></div><span class="read">约 8 分钟 · 阅读 →</span></div>
+      </a>
+
+      <a class="work" href="posts/02-prompt-evaluation.html">
+        <div class="work-top"><span class="work-no">02 · LLM 评测</span><span class="pill">提示工程</span></div>
+        <h3>提示策略对照评测的复盘：变量控制、双轨评分与可验证性</h3>
+        <p class="hook">同一个模型、40 道推理题、4 种提示策略、320 次调用，全程留痕，别人不花钱就能验证。</p>
+        <dl>
+          <dt>做了什么</dt><dd>控制变量 · 严格与宽松双轨评分 · 逐题错误归因 · 离线验证 + CI + 哈希清单</dd>
+          <dt>关键判断</dt><dd>“CoT 在逻辑题上更差”其实是评分口径造成的假象</dd>
+        </dl>
+        <div class="work-foot"><div class="sig"><b>7 / 8</b><span>处判错只是格式差异</span></div><span class="read">约 6 分钟 · 阅读 →</span></div>
+      </a>
+
+      <a class="work" href="posts/03-verification-agent-framework.html">
+        <div class="work-top"><span class="work-no">03 · Agent Harness</span><span class="pill">芯片验证</span></div>
+        <h3>受约束的 Agent Harness 设计：让 LLM 进入需要签核的芯片验证流程</h3>
+        <p class="hook">在要求可追溯、可签核的硅前验证流程里引入 LLM：先保证可靠，再追求自主。</p>
+        <dl>
+          <dt>做了什么</dt><dd>公开方案调研 · 五模块框架 · 四阶段路线 · 验证计划闭环落地</dd>
+          <dt>关键判断</dt><dd>能被精确描述的动作不交给 LLM；评估看人工接受率，而不是生成成功率</dd>
+        </dl>
+        <div class="work-foot"><div class="sig"><b>3 层职责</b><span>模型决策 · 工具执行 · 工程师审查</span></div><span class="read">约 8 分钟 · 阅读 →</span></div>
+      </a>
+
+      <a class="work" href="posts/04-mri-label-free-embedding.html">
+        <div class="work-top"><span class="work-no">04 · AI for Science</span><span class="pill">医学影像</span></div>
+        <h3>多序列脑 MRI 的无标签表征学习：受控实验、权重审计与叙事重构</h3>
+        <p class="hook">把“不同序列可以互相监督”这个原理，落实成一套可控的训练与评估框架。</p>
+        <dl>
+          <dt>做了什么</dt><dd>设计原则 · 防数据泄漏的评估 · 三轮单变量实验 · 权重审计 · 本地与服务器双 AI 交接 · 汇报重构</dd>
+          <dt>关键判断</dt><dd>损失在下降、表征却没变，顺着这条线追到数值精度：第一轮只检验了流程</dd>
+        </dl>
+        <div class="work-foot"><div class="sig"><b>3 轮</b><span>单变量受控实验</span></div><span class="read">约 8 分钟 · 阅读 →</span></div>
+      </a>
+
+      <a class="work wide" href="posts/05-resume-agent-five-routes.html">
+        <div class="work-top"><span class="work-no">05 · Agent 应用</span><span class="pills"><span class="pill">RAG</span><span class="pill">工具调用</span><span class="pill">技术选型</span></span></div>
+        <h3>同一个求职问题的五种 AI 解法：从一份 Skill 到完整的 Agent 工作台</h3>
+        <p class="hook">岗位搜集、JD 解析、推荐度评分、知识库检索、事实确认、多版本生成、AI 编辑、版式调整、导出、投递沟通和记录。我用五种不同的技术路线覆盖了这条链路，并比较了它们各自的适用场景、成本和风险。</p>
+        <dl>
+          <dt>做了什么</dt><dd>编码 Agent + Skill · HTML + 本地脚本 · 浏览器分步确认工作台 · 开源求职系统 · 三个版本迭代的 Agent 应用（知识库检索、事实确认、多版本候选、Agent 控制台）</dd>
+          <dt>关键判断</dt><dd>不是每个问题都需要一个 Agent 产品：先看有没有不可逆动作，再看要不要沉淀状态，最后看规则是否稳定</dd>
+        </dl>
+        <div class="work-foot"><div class="sig"><b>5 种路线 × 12 个环节</b><span>按风险、状态和频率选型</span></div><span class="read">约 9 分钟 · 阅读 →</span></div>
+      </a>
+    </div>
+  </section>
+
+  <section class="section" id="principles">
+    <div class="section-head">
+      <div><div class="kicker">Principles</div><h2>六条反复使用的判断</h2></div>
+      <p>这些不是事先定好的口号，而是在不同项目里各踩过一次坑之后，才慢慢收敛出来的。</p>
+    </div>
+    <div class="principles">
+      <div class="principle"><span class="n">01</span><h3>规则必须能被机械检查</h3><p>在有 Agent 参与的项目里，一条无法被检查的规则，约束力接近于零。“模块要解耦”不算规则，“设备层不准引用界面框架”才算。</p><div class="pills"><a class="pill acc" href="posts/01-dual-agent-workflow.html#rules">01 规则文件</a><a class="pill" href="posts/03-verification-agent-framework.html#contract">03 接口规范</a></div></div>
+      <div class="principle"><span class="n">02</span><h3>能被精确描述的动作，不交给 LLM</h3><p>模型决定“下一步做什么”，结果由确定性工具产出。备份、校验、比对、导出这些步骤，都不需要模型。</p><div class="pills"><a class="pill acc" href="posts/03-verification-agent-framework.html#routing">03 决策路由</a><a class="pill" href="posts/05-resume-agent-five-routes.html#b">05 HTML 助手</a></div></div>
+      <div class="principle"><span class="n">03</span><h3>对比之前，先控制变量</h3><p>变量没控制住，数字越精确越误导人。小样本必须用重复划分来评估，单次划分得到的“提升”可能只是运气。</p><div class="pills"><a class="pill acc" href="posts/02-prompt-evaluation.html#control">02 变量控制</a><a class="pill" href="posts/04-mri-label-free-embedding.html#experiments">04 受控实验</a></div></div>
+      <div class="principle"><span class="n">04</span><h3>结论要能被别人验证</h3><p>离线验证脚本、哈希清单，数字只从机器可读的文件里读取，结论再按证据强度分级。“我说的”要变成“你能查的”。</p><div class="pills"><a class="pill acc" href="posts/02-prompt-evaluation.html#verify">02 可验证性</a><a class="pill" href="posts/04-mri-label-free-embedding.html#levels">04 结论分级</a></div></div>
+      <div class="principle"><span class="n">05</span><h3>最终决定权留给人</h3><p>两个模型会以相同的方式出错，所以一致意见只是输入。涉及外部账号和不可逆的动作，必须分步确认，并在操作后回读核对。</p><div class="pills"><a class="pill acc" href="posts/01-dual-agent-workflow.html#problems">01 共享先验</a><a class="pill" href="posts/05-resume-agent-five-routes.html#c">05 分步确认</a></div></div>
+      <div class="principle"><span class="n">06</span><h3>按场景选技术，而不是按热度</h3><p>Skill、脚本、工作流、完整应用，各有各的适用场景。上下文的大小、基础设施的规模，都应该跟着实际需求走。</p><div class="pills"><a class="pill acc" href="posts/05-resume-agent-five-routes.html#choose">05 选型三问</a><a class="pill" href="posts/01-dual-agent-workflow.html#context">01 上下文成本</a></div></div>
+    </div>
+  </section>
+
+  <section class="section" id="map">
+    <div class="section-head">
+      <div><div class="kicker">Capability map</div><h2>能力地图</h2></div>
+      <p>每个作品主要体现了哪些能力。实心表示这是该作品的重点，空心表示有所涉及。</p>
+    </div>
+    <div class="matrix-wrap">
+      <table class="matrix">
+        <thead><tr><th>能力</th><th><a href="posts/01-dual-agent-workflow.html">01 双 Agent</a></th><th><a href="posts/02-prompt-evaluation.html">02 评测</a></th><th><a href="posts/03-verification-agent-framework.html">03 Agent Harness</a></th><th><a href="posts/04-mri-label-free-embedding.html">04 MRI</a></th><th><a href="posts/05-resume-agent-five-routes.html">05 求职 Agent</a></th></tr></thead>
+        <tbody>
+          <tr><td>Agent 架构设计</td><td><i class="dot half"></i></td><td></td><td><i class="dot"></i></td><td></td><td><i class="dot"></i></td></tr>
+          <tr><td>工具调用与接口设计</td><td></td><td></td><td><i class="dot"></i></td><td></td><td><i class="dot"></i></td></tr>
+          <tr><td>RAG 与知识库</td><td></td><td></td><td></td><td></td><td><i class="dot"></i></td></tr>
+          <tr><td>上下文工程与调用成本</td><td><i class="dot"></i></td><td><i class="dot"></i></td><td></td><td></td><td><i class="dot half"></i></td></tr>
+          <tr><td>多 Agent 与 AI 协作开发</td><td><i class="dot"></i></td><td></td><td></td><td><i class="dot"></i></td><td><i class="dot half"></i></td></tr>
+          <tr><td>评测设计与统计口径</td><td></td><td><i class="dot"></i></td><td><i class="dot half"></i></td><td><i class="dot"></i></td><td></td></tr>
+          <tr><td>科研实验设计与诊断</td><td></td><td><i class="dot half"></i></td><td></td><td><i class="dot"></i></td><td></td></tr>
+          <tr><td>前端与交互设计</td><td><i class="dot"></i></td><td></td><td></td><td></td><td><i class="dot"></i></td></tr>
+          <tr><td>可追溯与工程治理</td><td><i class="dot half"></i></td><td><i class="dot"></i></td><td><i class="dot"></i></td><td><i class="dot half"></i></td><td></td></tr>
+          <tr><td>技术选型与成本判断</td><td><i class="dot half"></i></td><td></td><td><i class="dot half"></i></td><td></td><td><i class="dot"></i></td></tr>
+          <tr><td>科研汇报与叙事</td><td></td><td></td><td></td><td><i class="dot"></i></td><td></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section" id="about">
+    <div class="section-head">
+      <div><div class="kicker">About</div><h2>关于这些文章</h2></div>
+    </div>
+    <div class="about">
+      <div class="panel">
+        <h3>写给谁看，写什么</h3>
+        <p>这是作品集，也带一点分享。读者可能是想了解我做事方式的面试官或合作者，也可能是正在做类似事情的工程师。所以文章不展示代码，重点是三件事：遇到了什么问题，我怎么判断，最后做成了什么样。每篇末尾都写了局限和“如果重做”，因为我认为把边界写清楚，本身就是工程能力的一部分。</p>
+        <h3 style="margin-top:16px">脱敏说明</h3>
+        <ul>
+          <li>不涉及任何任职或合作组织的业务信息；产品名、项目代号、内部工具名一律隐去。</li>
+          <li>界面图和流程图都是示意重绘，不使用真实截图。</li>
+          <li>个人联系方式、简历内容、投递的公司均不展示；科研中的具体性能数字做了概括处理。</li>
+        </ul>
+      </div>
+      <div class="panel">
+        <h3>图示配色约定</h3>
+        <p>全站所有示意图都使用同一套颜色语义，读一张就能读懂所有：</p>
+        <div class="legend" style="flex-direction:column;align-items:flex-start;gap:10px;margin-top:4px">
+          <span><i style="background:var(--c-llm)"></i>蓝色：模型或 Agent 的决策</span>
+          <span><i style="background:var(--c-tool)"></i>绿色：确定性工具、校验与证据</span>
+          <span><i style="background:var(--c-human)"></i>琥珀色：人工决策点与关键判断</span>
+          <span><i style="background:var(--c-risk)"></i>红色：风险、失败路径与漂移</span>
+          <span><i style="background:var(--c-alt)"></i>紫色：第二个 Agent 或数据侧</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="wrap">
+    <span>© 2026 Yu Dian · 文章与插图以 CC BY 4.0 提供，转载请注明出处</span>
+    <span><a href="https://github.com/evelyn77yu">GitHub</a> · <a href="https://evelyn77yu.github.io">主页</a></span>
+  </div>
+</footer>
+</body>
+</html>

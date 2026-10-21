@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>求职 Agent 的五种解法 · AI Engineering Notes</title>
+<meta name="description" content="同一个求职问题的五种 AI 解法：Skill、HTML 加本地脚本、浏览器分步确认工作台、开源多 Agent 系统和完整的 Agent 应用。各自适配什么场景、成本和风险如何。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="求职 Agent 的五种解法 · AI Engineering Notes">
+<meta property="og:description" content="同一个求职问题的五种 AI 解法：Skill、HTML 加本地脚本、浏览器分步确认工作台、开源多 Agent 系统和完整的 Agent 应用。各自适配什么场景、成本和风险如何。">
+<meta property="og:url" content="https://evelyn77yu.github.io/ai-engineering-blog/posts/05-resume-agent-five-routes.html">
+<meta property="og:image" content="https://evelyn77yu.github.io/ai-engineering-blog/assets/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23171925'/%3E%3Ctext x='32' y='41' font-family='monospace' font-size='26' font-weight='700' fill='%23fde68a' text-anchor='middle'%3EYD%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../assets/site.css">
+</head>
+<body>
+<svg class="svg-defs" aria-hidden="true"><defs>
+  <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk"/></marker>
+  <marker id="ar-llm" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-llm"/></marker>
+  <marker id="ar-tool" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-tool"/></marker>
+  <marker id="ar-human" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-human"/></marker>
+  <marker id="ar-risk" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-risk"/></marker>
+  <marker id="ar-alt" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="mk-alt"/></marker>
+</defs></svg>
+
+<header class="nav">
+  <div class="nav-inner">
+    <a class="brand" href="../index.html"><span class="brand-mark">YD</span><span class="brand-text">AI Engineering Notes</span></a>
+    <nav class="nav-links">
+      <a href="../index.html#works">作品</a>
+      <a href="../index.html#principles">判断原则</a>
+      <a href="../index.html#map">能力地图</a>
+      <a href="https://evelyn77yu.github.io">主页 ↗</a>
+    </nav>
+  </div>
+</header>
+
+<section class="post-hero">
+  <div class="wrap">
+    <div class="crumbs"><a href="../index.html">作品集</a> / 05 · Agent 应用</div>
+    <h1>同一个求职问题的五种 AI 解法：从一份 Skill 到完整的 Agent 工作台</h1>
+    <p class="lede">秋招要投几十个岗位，每个岗位都需要一份贴合 JD、又绝对真实的简历。这个问题我前后用五种方式解过：把经验写成 Skill 交给编码 Agent，让 HTML 页面直接调用本地脚本，在浏览器里搭一个分步确认的投递工作台，借用开源的多 Agent 求职系统，以及从零做一个完整的 Agent 应用。这五种方式不是谁淘汰谁，而是各自对应不同的场景、成本和风险。</p>
+    <p class="postinfo">阅读约 9 分钟 · 更新于 2026 年 10 月 21 日</p>
+    <dl class="meta">
+      <div><dt>领域</dt><dd>Agent 应用 · 个人工作流</dd></div>
+      <div><dt>我的角色</dt><dd>产品设计 · 全栈实现 · 日常使用</dd></div>
+      <div><dt>规模</dt><dd>5 种路线 · 12 个环节 · 3 个应用版本</dd></div>
+      <div><dt>关键词</dt><dd>RAG · 工具调用 · 事实确认 · 分步确认</dd></div>
+    </dl>
+  </div>
+</section>
+
+<div class="layout">
+<article class="prose">
+
+  <section class="pitch"><span class="label">30 秒版本</span><p>为了秋招定制简历，我先后试了五种 AI 方案：把经验写成 Skill 交给编码 Agent，让 HTML 页面直接调用本地脚本，在浏览器里搭一个分步确认的投递工作台，借用开源系统做岗位评分，以及自己做一个完整的 Agent 应用。完整应用覆盖从岗位搜集到投递记录的 12 个环节，包括本地知识库检索、事实确认、多版本候选和 Agent 控制台。我的选型方法是：先看有没有不可逆的动作，再看需不需要沉淀状态，最后看规则是否稳定。</p></section>
+
+  <div class="tldr">
+    <div><h4>背景</h4><p>海投场景：中英文都要，方向从 Agent、AI 平台、AI 产品一直到半导体，还要能被招聘系统正确解析。最大的风险是 AI 编造经历。</p></div>
+    <div><h4>我做了什么</h4><p>用五种路线覆盖了从岗位搜集到投递记录的 12 个环节。其中完整应用从产品规格开始，迭代了三个版本：本地 RAG 原型、可部署版、Agent 工作台。</p></div>
+    <div><h4>关键判断</h4><p>不是每个问题都需要一个 Agent 产品。规则稳定又高频，用 Skill 或脚本；需要跨次沉淀状态，才做应用；涉及外部账号和不可逆动作，必须分步确认。</p></div>
+    <div><h4>结果</h4><p>实际产出了数十份中英文岗位定制简历。真实性靠四道机制来保证：事实库、待确认环节、来源引用和真实性自查。</p></div>
+  </div>
+
+  <h2 id="problem"><span class="no">01</span>问题：一份“好简历”的验收标准</h2>
+  <p>在动手之前，我先把“好”写成了可以验收的标准。这一步决定了后面每条路线该怎么取舍：</p>
+  <div class="rulecard">
+    <header><span>验收标准</span><span>来自产品规格</span></header>
+    <ul>
+      <li><strong>真实</strong>：不生成没做过的项目，不补写素材里没有的数字；没有确认过的技能不能写进简历</li>
+      <li><strong>贴合</strong>：根据 JD 的关键词和岗位方向调整顺序与表述；中文强调业务场景和落地，英文强调 ownership、impact 和关键词，两种语言分别生成，不逐句翻译</li>
+      <li><strong>可解析</strong>：结构清晰，能被招聘系统和 AI 筛选系统正确识别</li>
+      <li><strong>版式</strong>：A4，通常两页；两页是排版目标，而不是删内容的理由</li>
+      <li><strong>省时</strong>：每份通常只改 2 到 4 处内容、1 到 2 处排版，人工环节控制在 30 秒到 1 分钟</li>
+    </ul>
+  </div>
+  <p>最后一条很关键。它说明系统的目标<strong>不是替我做决定</strong>，而是把“找素材、写候选、排版”这些重复劳动压缩掉，把选择权和最终确认留给我。</p>
+
+  <h2 id="map"><span class="no">02</span>全流程，以及五种路线各管哪一段</h2>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 330" role="img" aria-label="求职全流程的 12 个环节，以及五种路线各自覆盖的部分：完整应用覆盖最广，浏览器工作台负责投递沟通，开源系统负责岗位搜集与评分">
+        <rect x="170" y="14" width="144" height="26" rx="6" class="alt"/><text x="242" y="32" class="t c-alt" style="font-size:12px" text-anchor="middle">找岗位</text>
+        <rect x="318" y="14" width="332" height="26" rx="6" class="llm"/><text x="484" y="32" class="t c-llm" style="font-size:12px" text-anchor="middle">写简历</text>
+        <rect x="654" y="14" width="92" height="26" rx="6" class="human"/><text x="700" y="32" class="t c-human" style="font-size:12px" text-anchor="middle">投递</text>
+        <g class="ts" text-anchor="middle">
+          <text x="194" y="66">岗位搜集</text><text x="242" y="66">JD 解析</text><text x="290" y="66">推荐评分</text><text x="338" y="66">知识检索</text><text x="386" y="66">事实确认</text><text x="434" y="66">多版本</text><text x="482" y="66">AI 编辑</text><text x="530" y="66">人工修改</text><text x="578" y="66">版式调整</text><text x="626" y="66">导出</text><text x="674" y="66">投递沟通</text><text x="722" y="66">投递记录</text>
+        </g>
+        <line x1="10" y1="80" x2="750" y2="80" class="grid"/>
+        <rect x="10" y="246" width="740" height="40" rx="8" class="fill-s2"/>
+        <g class="t" style="font-size:12.5px">
+          <text x="16" y="105">A · Skill + 编码 Agent</text>
+          <text x="16" y="145">B · HTML + 本地脚本</text>
+          <text x="16" y="185">C · 浏览器投递工作台</text>
+          <text x="16" y="225">D · 开源求职系统</text>
+          <text x="16" y="271" font-weight="650">E · 完整 Agent 应用</text>
+        </g>
+        <g class="grid"><line x1="10" y1="120" x2="750" y2="120"/><line x1="10" y1="160" x2="750" y2="160"/><line x1="10" y1="200" x2="750" y2="200"/><line x1="10" y1="240" x2="750" y2="240"/></g>
+        <!-- A -->
+        <g class="fill-human"><circle cx="242" cy="100" r="7"/><circle cx="482" cy="100" r="7"/><circle cx="578" cy="100" r="7"/><circle cx="626" cy="100" r="7"/></g>
+        <g fill="none" class="ln-human" stroke-width="2"><circle cx="338" cy="100" r="6"/><circle cx="434" cy="100" r="6"/><circle cx="530" cy="100" r="6"/></g>
+        <!-- B -->
+        <g class="fill-human"><circle cx="530" cy="140" r="7"/><circle cx="578" cy="140" r="7"/><circle cx="626" cy="140" r="7"/></g>
+        <g fill="none" class="ln-human" stroke-width="2"><circle cx="482" cy="140" r="6"/></g>
+        <!-- C -->
+        <g class="fill-human"><circle cx="242" cy="180" r="7"/><circle cx="674" cy="180" r="7"/><circle cx="722" cy="180" r="7"/></g>
+        <g fill="none" class="ln-human" stroke-width="2"><circle cx="194" cy="180" r="6"/><circle cx="290" cy="180" r="6"/><circle cx="626" cy="180" r="6"/></g>
+        <!-- D -->
+        <g class="fill-human"><circle cx="194" cy="220" r="7"/><circle cx="242" cy="220" r="7"/><circle cx="290" cy="220" r="7"/><circle cx="722" cy="220" r="7"/></g>
+        <g fill="none" class="ln-human" stroke-width="2"><circle cx="434" cy="220" r="6"/><circle cx="626" cy="220" r="6"/></g>
+        <!-- E -->
+        <g class="fill-human"><circle cx="242" cy="266" r="7"/><circle cx="290" cy="266" r="7"/><circle cx="338" cy="266" r="7"/><circle cx="386" cy="266" r="7"/><circle cx="434" cy="266" r="7"/><circle cx="482" cy="266" r="7"/><circle cx="530" cy="266" r="7"/><circle cx="578" cy="266" r="7"/><circle cx="626" cy="266" r="7"/><circle cx="722" cy="266" r="7"/></g>
+        <g fill="none" class="ln-human" stroke-width="2"><circle cx="194" cy="266" r="6"/></g>
+        <circle cx="180" cy="310" r="7" class="fill-human"/><text x="194" y="314" class="ts">主要负责</text>
+        <circle cx="280" cy="310" r="6" fill="none" class="ln-human" stroke-width="2"/><text x="294" y="314" class="ts">部分覆盖或只有入口</text>
+        <text x="750" y="314" class="ts" text-anchor="end">“投递沟通”只交给分步确认的路线</text>
+      </svg>
+    </div>
+    <figcaption><b>图 1　12 个环节 × 5 种路线。</b>完整应用覆盖最广，但它刻意不碰“投递沟通”，因为那一步涉及外部账号和不可逆的动作。这一步只交给每一步都要我确认的浏览器工作台。</figcaption>
+  </figure>
+
+  <h2 id="a"><span class="no">03</span>路线 A：把经验写成 Skill，交给编码 Agent</h2>
+  <p>最轻的一种做法：不写任何应用，把我反复对 AI 说的要求整理成一份 Skill 文件，让本地的编码 Agent（Claude Code 或 Codex）每次改简历时自动加载。它本质上是<strong>把对话里的隐性经验变成显式规则</strong>：</p>
+  <div class="cards">
+    <div class="rulecard">
+      <header><span>内容规则</span><span>节选</span></header>
+      <ul>
+        <li>从 JD 的职责和要求里提取 6 到 10 个高信号关键词</li>
+        <li>围绕关键词改写角色行、个人简介、技能和项目要点</li>
+        <li>按岗位类型套用不同的项目表述角度：Agent 类、产品类、硬件评测类</li>
+        <li><strong>红线</strong>：素材里没有的技术和经历，一律不写</li>
+      </ul>
+    </div>
+    <div class="rulecard">
+      <header><span>工程规则</span><span>节选</span></header>
+      <ul>
+        <li>新 JD 一律新建文件，从不覆盖已有版本</li>
+        <li>沿用固定的 HTML 结构和 A4 打印样式</li>
+        <li>命名规则固定，HTML 与 PDF 同名配对</li>
+        <li>用无头浏览器导出 PDF，导出后核对文件确实存在</li>
+      </ul>
+    </div>
+  </div>
+  <p>优点是几乎零成本，而且非常灵活。缺点同样明显：<strong>状态不会沉淀</strong>。哪些事实确认过、哪种表述我更喜欢、哪份投了哪家，每次对话都要重新理解一遍。这正是后面两条路线要补上的东西。</p>
+
+  <h2 id="b"><span class="no">04</span>路线 B：HTML 就是编辑器，按钮直接调本地脚本</h2>
+  <p>很多时候，简历已经基本成型，我只想在页面上直接改几个字、保存，再一键生成英文版。为此我做了一个本地助手，让简历 HTML 页面上多出两个按钮：</p>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 214" role="img" aria-label="HTML 简历助手流程：页面按钮唤起本地服务，写前备份，调用本机编码 Agent 只重译改动条目，结构检查不一致则不写入，再用无头浏览器检查页数，超页则自动压缩">
+        <rect x="5" y="40" width="112" height="84" rx="10" class="bx"/>
+        <text x="61" y="64" class="tb" style="font-size:13px" text-anchor="middle">简历页面</text>
+        <rect x="19" y="74" width="84" height="20" rx="6" class="human"/><text x="61" y="88" class="ts" text-anchor="middle">保存到文件</text>
+        <rect x="19" y="98" width="84" height="20" rx="6" class="llm"/><text x="61" y="112" class="ts" text-anchor="middle">生成英文版</text>
+        <rect x="131" y="40" width="112" height="84" rx="10" class="tool"/>
+        <text x="187" y="66" class="t" text-anchor="middle">本地服务</text><text x="187" y="86" class="ts" text-anchor="middle">只听本机地址</text><text x="187" y="102" class="ts" text-anchor="middle">拒绝网站来的请求</text><text x="187" y="116" class="ts" text-anchor="middle">空闲 10 分钟退出</text>
+        <rect x="257" y="40" width="112" height="84" rx="10" class="tool"/>
+        <text x="313" y="66" class="t" text-anchor="middle">写前备份</text><text x="313" y="86" class="ts" text-anchor="middle">中文源文件</text><text x="313" y="102" class="ts" text-anchor="middle">和被覆盖的英文版</text>
+        <rect x="383" y="40" width="112" height="84" rx="10" class="llm"/>
+        <text x="439" y="66" class="t" text-anchor="middle">编码 Agent 翻译</text><text x="439" y="86" class="ts" text-anchor="middle">只重译改动条目</text><text x="439" y="102" class="ts" text-anchor="middle">附带术语表</text><text x="439" y="116" class="ts" text-anchor="middle">沿用已有译文</text>
+        <rect x="509" y="40" width="112" height="84" rx="10" class="tool"/>
+        <text x="565" y="66" class="t" text-anchor="middle">结构检查</text><text x="565" y="86" class="ts" text-anchor="middle">条目数、模块数</text><text x="565" y="102" class="ts" text-anchor="middle">链接数与中文一致</text>
+        <rect x="635" y="40" width="112" height="84" rx="10" class="tool"/>
+        <text x="691" y="66" class="t" text-anchor="middle">页数检查</text><text x="691" y="86" class="ts" text-anchor="middle">无头浏览器排版</text><text x="691" y="102" class="ts" text-anchor="middle">超页自动压缩</text><text x="691" y="116" class="ts" text-anchor="middle">1 到 2 轮</text>
+        <path d="M118 82 L129 82" class="ln" marker-end="url(#ar)"/><path d="M244 82 L255 82" class="ln" marker-end="url(#ar)"/><path d="M370 82 L381 82" class="ln" marker-end="url(#ar)"/><path d="M496 82 L507 82" class="ln" marker-end="url(#ar)"/><path d="M622 82 L633 82" class="ln" marker-end="url(#ar)"/>
+        <text x="124" y="30" class="ts" text-anchor="middle">自定义链接唤起</text>
+        <path d="M565 126 L565 160" class="ln-risk" marker-end="url(#ar-risk)"/>
+        <rect x="485" y="162" width="160" height="34" rx="8" class="risk"/><text x="565" y="184" class="t" style="font-size:12px" text-anchor="middle">不一致 → 不写入</text>
+        <path d="M691 126 L691 160" class="ln-tool" marker-end="url(#ar-tool)"/>
+        <rect x="655" y="162" width="92" height="34" rx="8" class="tool"/><text x="701" y="184" class="t" style="font-size:12px" text-anchor="middle">打开英文页</text>
+        <text x="10" y="184" class="tm">改了几条只重译几条，约十几秒；首次全文翻译约 1 到 3 分钟</text>
+      </svg>
+    </div>
+    <figcaption><b>图 2　让 HTML 自己成为编辑器。</b>翻译调用的是本机已经登录的编码 Agent，不需要单独的 API Key。LLM 只负责翻译这一步，前后的备份、结构检查和页数检查全部是确定性的脚本。</figcaption>
+  </figure>
+  <p>这条路线里我最满意的一个设计是<strong>结构检查</strong>：英文结果的条目数、模块数和链接数必须与中文版一致，否则一个字都不写回。LLM 翻译偶尔会合并或丢掉条目，这个检查能用最低的成本把这类错误挡在文件之外。</p>
+
+  <h2 id="c"><span class="no">05</span>路线 C：浏览器里的投递工作台，每一步都要确认</h2>
+  <p>投递沟通发生在招聘平台的聊天页里：读招聘方的消息、回复、发简历附件。这一步动的是真实账号，发出去的消息也收不回来，所以我把它设计成一个<strong>以页面内容为准、每个不可逆动作之前都要人工确认</strong>的工作流，跑在编码 Agent 自带的浏览器里：</p>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 236" role="img" aria-label="分步确认流程：读取当前页面、生成草稿、用户确认、填入输入框、回读核对、用户确认、发送、回读确认、更新本地索引；遇到登录、验证码、风控或页面异常立即停止并交还用户">
+        <text x="10" y="22" class="ts">以页面为准：只读当前可见内容，不刷新、不重新导航、不抓取接口</text>
+        <rect x="10" y="44" width="84" height="56" rx="10" class="bx"/><text x="52" y="68" class="t" style="font-size:12px" text-anchor="middle">读取页面</text><text x="52" y="86" class="ts" text-anchor="middle">岗位与对话</text>
+        <rect x="108" y="44" width="84" height="56" rx="10" class="llm"/><text x="150" y="68" class="t" style="font-size:12px" text-anchor="middle">生成草稿</text><text x="150" y="86" class="ts" text-anchor="middle">回复或话术</text>
+        <path d="M228 50 L250 72 L228 94 L206 72 Z" class="human"/><text x="228" y="76" class="ts c-human" text-anchor="middle">确认</text>
+        <rect x="264" y="44" width="84" height="56" rx="10" class="bx"/><text x="306" y="68" class="t" style="font-size:12px" text-anchor="middle">填入输入框</text><text x="306" y="86" class="ts" text-anchor="middle">暂不发送</text>
+        <rect x="362" y="44" width="84" height="56" rx="10" class="tool"/><text x="404" y="68" class="t" style="font-size:12px" text-anchor="middle">回读核对</text><text x="404" y="86" class="ts" text-anchor="middle">草稿确实在框里</text>
+        <path d="M482 50 L504 72 L482 94 L460 72 Z" class="human"/><text x="482" y="76" class="ts c-human" text-anchor="middle">确认</text>
+        <rect x="518" y="44" width="70" height="56" rx="10" class="bx"/><text x="553" y="76" class="t" style="font-size:12px" text-anchor="middle">发送</text>
+        <rect x="602" y="44" width="70" height="56" rx="10" class="tool"/><text x="637" y="68" class="t" style="font-size:12px" text-anchor="middle">回读</text><text x="637" y="86" class="ts" text-anchor="middle">已发出</text>
+        <rect x="686" y="44" width="66" height="56" rx="10" class="bx2"/><text x="719" y="68" class="t" style="font-size:12px" text-anchor="middle">更新</text><text x="719" y="86" class="ts" text-anchor="middle">本地索引</text>
+        <path d="M95 72 L106 72" class="ln" marker-end="url(#ar)"/><path d="M193 72 L204 72" class="ln" marker-end="url(#ar)"/><path d="M251 72 L262 72" class="ln" marker-end="url(#ar)"/><path d="M349 72 L360 72" class="ln" marker-end="url(#ar)"/><path d="M447 72 L458 72" class="ln" marker-end="url(#ar)"/><path d="M505 72 L516 72" class="ln" marker-end="url(#ar)"/><path d="M589 72 L600 72" class="ln" marker-end="url(#ar)"/><path d="M673 72 L684 72" class="ln" marker-end="url(#ar)"/>
+        <g class="ln-risk dash"><path d="M52 102 V146"/><path d="M306 102 V146"/><path d="M553 102 V146"/></g>
+        <rect x="10" y="148" width="742" height="40" rx="10" class="risk"/>
+        <text x="381" y="173" class="t" style="font-size:12.5px" text-anchor="middle">任何一步遇到登录、验证码、风控、页面异常，或附件无法唯一识别 → 立即停止，交还给我</text>
+        <text x="10" y="216" class="tm">薪资、到岗时间、工时、身份条件、面试时间：只出草稿，不替我做任何承诺</text>
+      </svg>
+    </div>
+    <figcaption><b>图 3　两次人工确认 + 两次回读核对。</b>Agent 每做完一个动作，都会回读页面，确认动作确实生效了，而不是假设它生效了。</figcaption>
+  </figure>
+  <p>发简历附件是风险最高的一步，所以单独设了一条边界：只有在我明确确认“公司、岗位、PDF 文件、发送话术”这四项之后，Agent 才会上传附件并发送，而且<strong>只删除本次上传的那一份附件</strong>，无法唯一识别时就不删。本地只保存轻量的索引：文件路径、状态和最近一次摘要，不保存完整的聊天记录。</p>
+  <div class="callout"><span class="label">判断</span><p>这一步交给 Agent 的价值不在“自动化”，而在于<strong>它不会疲劳，也不会跳步</strong>。人在处理第二十个对话时最容易犯的错，比如发错附件、回错人，恰好就是固定流程最擅长挡住的。</p></div>
+
+  <h2 id="d"><span class="no">06</span>路线 D：岗位发现与评分，直接用开源系统</h2>
+  <p>岗位搜集和初筛我没有自己造轮子，直接用了开源的多 Agent 求职系统 <strong>career-ops</strong>：它能扫描招聘页面，按 10 个加权维度给岗位打 A 到 F 的分，再把结果写进一张投递追踪表。它的一条原则我很认同：<strong>低于 4.0/5 的岗位不推荐投递</strong>，它是一个过滤器，而不是海投工具。我自己记录的已投岗位，评分大多集中在 4.1 到 4.6 之间。</p>
+  <p>它的局限在于评分维度是通用的，并不了解我已经确认过哪些事实。所以我在自己的应用里给“职位发现”只留了一个入口和数据接口：将来<strong>单向读取</strong>它的评分结果和投递状态，而不是在它的基础上再造一套。</p>
+
+  <h2 id="e"><span class="no">07</span>路线 E：完整的 Agent 应用</h2>
+  <p>前四条路线各自解决了一段问题，但有三件事只有一个真正的应用才能做好：<strong>跨次沉淀事实</strong>（哪些经历确认过、哪些技能可以写）、<strong>沉淀偏好</strong>（我总是选哪种表述），以及<strong>可追溯的版本</strong>（哪份简历投给了哪个岗位）。</p>
+
+  <h3>三个版本，每次只回答一个问题</h3>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>版本</th><th>要回答的问题</th><th>关键设计</th></tr></thead>
+      <tbody>
+        <tr><td>v0 · 本地原型</td><td>RAG 加多版本生成这条链路能不能跑通？</td><td>前后端分离；本地知识库自动监听，按哈希增量索引；本地向量检索；支持多家模型；生成进度实时推送；拖拽配置后导出 HTML/PDF</td></tr>
+        <tr><td>产品规格</td><td>它到底该做成什么样？</td><td>先写需求，再写代码：验收标准、真实性原则、人工最终控制、信息架构、三层素材体系（事实库、表述库、历史版本库）</td></tr>
+        <tr><td>v1 · 可部署版</td><td>能不能放到云端用？</td><td>模型只在服务端调用，密钥不进浏览器；导入接口拒绝原始文件，只接受人工整理过的事实摘要</td></tr>
+        <tr><td class="hl">v2 · Agent 工作台</td><td class="hl">怎样又真实、又省时？</td><td class="hl">回到本地优先；事实确认环节；每条经历生成多个角度的候选，附推荐分和依据；Agent 控制台；快照和投递记录</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>v1 到 v2 的转向值得说一下：为了能部署到云端，v1 只允许导入手工整理的事实摘要，安全性很好，但往里面喂素材太费劲，日常根本用不起来。v2 回到了本地优先、单用户的定位，数据库也换成了单文件。<strong>知识库只有十几份文档，向量也直接存在同一个数据库里，检索用暴力计算余弦相似度</strong>，不再引入单独的向量数据库。基础设施的规模应该跟着数据规模走，而不是跟着技术热度走。</p>
+
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 340" role="img" aria-label="完整应用架构：本地资料经过监听和增量索引写入单一数据库；JD 经过解析、事实确认和多版本生成进入编辑工作台，最后导出并写回快照与投递记录">
+        <rect x="10" y="20" width="220" height="50" rx="10" class="bx2"/>
+        <text x="120" y="42" class="t" text-anchor="middle">本地资料文件夹</text><text x="120" y="60" class="ts" text-anchor="middle">历史简历 · 项目说明 · 笔记 · 代码</text>
+        <path d="M120 72 L120 94" class="ln" marker-end="url(#ar)"/>
+        <rect x="10" y="96" width="220" height="54" rx="10" class="tool"/>
+        <text x="120" y="119" class="t" text-anchor="middle">监听 · 增量索引</text><text x="120" y="138" class="ts" text-anchor="middle">哈希去重 · 切块 · 本地向量化</text>
+        <path d="M120 152 L120 174" class="ln" marker-end="url(#ar)"/>
+        <rect x="10" y="176" width="220" height="150" rx="10" class="bx"/>
+        <text x="120" y="198" class="tb" text-anchor="middle">单一数据库 · 唯一可信来源</text>
+        <g class="ts"><text x="26" y="222">资料与向量块</text><text x="26" y="242">事实与技能：待确认 → 已确认</text><text x="26" y="262">岗位与澄清问题</text><text x="26" y="282">表述素材：被选中/拒绝次数</text><text x="26" y="302">简历快照与投递记录</text></g>
+
+        <rect x="270" y="20" width="220" height="40" rx="10" class="bx2"/><text x="380" y="45" class="t" text-anchor="middle">粘贴 JD · 选择语言</text>
+        <path d="M380 62 L380 78" class="ln" marker-end="url(#ar)"/>
+        <rect x="270" y="80" width="220" height="50" rx="10" class="llm"/>
+        <text x="380" y="101" class="t" text-anchor="middle">JD 解析</text><text x="380" y="119" class="ts" text-anchor="middle">关键词 · 要求 · 方向 · 硬性条件</text>
+        <path d="M380 132 L380 148" class="ln" marker-end="url(#ar)"/>
+        <rect x="270" y="150" width="220" height="56" rx="10" class="human"/>
+        <text x="380" y="172" class="tb" text-anchor="middle">事实确认</text><text x="380" y="192" class="ts" text-anchor="middle">新技能 / 冲突 / 指标 → 我来确认</text>
+        <path d="M380 208 L380 224" class="ln" marker-end="url(#ar)"/>
+        <rect x="270" y="226" width="220" height="56" rx="10" class="llm"/>
+        <text x="380" y="248" class="t" text-anchor="middle">多版本生成</text><text x="380" y="268" class="ts" text-anchor="middle">每条 2 个角度 · 推荐分 · 依据 · 来源</text>
+        <path d="M232 230 L268 250" class="ln-tool" marker-end="url(#ar-tool)"/>
+        <path d="M232 214 L268 112" class="ln-tool" marker-end="url(#ar-tool)"/>
+        <text x="380" y="302" class="ts c-tool" text-anchor="middle">↖ 检索相关片段与已确认事实</text>
+
+        <rect x="530" y="20" width="220" height="124" rx="10" class="bx"/>
+        <text x="640" y="44" class="tb" text-anchor="middle">编辑工作台</text>
+        <g class="ts" text-anchor="middle"><text x="640" y="68">A4 实时预览 · 分页提示</text><text x="640" y="88">切换版本 · 锁定 · 拖拽排序</text><text x="640" y="108">排版密度 · 中英切换</text><text x="640" y="128" class="c-llm">Agent 控制台</text></g>
+        <path d="M492 254 L510 254 L510 82 L528 82" class="ln" marker-end="url(#ar)"/>
+        <path d="M640 146 L640 166" class="ln" marker-end="url(#ar)"/>
+        <rect x="530" y="168" width="220" height="50" rx="10" class="tool"/>
+        <text x="640" y="190" class="t" text-anchor="middle">导出</text><text x="640" y="208" class="ts" text-anchor="middle">HTML 与 PDF 同名配对</text>
+        <path d="M640 220 L640 240" class="ln" marker-end="url(#ar)"/>
+        <rect x="530" y="242" width="220" height="50" rx="10" class="bx"/>
+        <text x="640" y="264" class="t" text-anchor="middle">快照 + 投递记录</text><text x="640" y="282" class="ts" text-anchor="middle">可比较 · 可恢复 · 永不自动投递</text>
+        <path d="M640 294 L640 332 L232 332 L232 318" class="ln dash" marker-end="url(#ar)"/>
+        <text x="500" y="328" class="ts" text-anchor="middle">写回</text>
+      </svg>
+    </div>
+    <figcaption><b>图 4　完整应用的架构。</b>蓝色是调用 LLM 的环节，绿色是确定性的处理，琥珀色是必须由我决定的环节。模型只在服务端调用，生成时只拿到当前 JD 和检索出的相关片段，不会读取整个资料库。</figcaption>
+  </figure>
+
+  <h3>事实确认：先问清楚，再生成</h3>
+  <p>JD 解析完之后，系统不会马上开始写，而是先把“素材里没有证据、但 JD 很看重”的东西变成一组需要我回答的问题。这些问题分三类：</p>
+  <div class="cards three">
+    <div class="card human"><span class="tag">新技能</span><h4>JD 要的技能，素材里没有</h4><p>问我用到了什么程度、在什么场景下用过、能不能接受面试追问。在我回答之前，这项技能不会被写进去。</p></div>
+    <div class="card human"><span class="tag">冲突</span><h4>两份素材说法不一致</h4><p>比如时间、职责或者项目名称对不上，由我选择以哪一份为准。</p></div>
+    <div class="card human"><span class="tag">指标</span><h4>要不要写数字</h4><p>素材里没有的量化指标绝不补写；有数字但还没确认过的，先问我。</p></div>
+  </div>
+
+  <h3>工作台：多个候选、推荐分和依据</h3>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 360" role="img" aria-label="编辑工作台示意：左侧是模块和条目，每个条目有多个带分数的候选版本；中间是 A4 预览和密度滑块；右侧是待确认事实和依据来源；底部是 Agent 控制台">
+        <rect x="10" y="10" width="740" height="340" rx="12" class="bx"/>
+        <line x1="230" y1="10" x2="230" y2="290" class="grid"/><line x1="530" y1="10" x2="530" y2="290" class="grid"/><line x1="10" y1="290" x2="750" y2="290" class="grid"/>
+        <text x="24" y="34" class="tb" style="font-size:12.5px">简历模块</text>
+        <text x="24" y="58" class="ts tmono">项目经历</text>
+        <rect x="24" y="66" width="192" height="76" rx="8" class="bx2"/>
+        <text x="34" y="84" class="t" style="font-size:12px">项目 · Agent 工作台</text><text x="206" y="84" class="ts" text-anchor="end">🔒</text>
+        <rect x="34" y="94" width="96" height="20" rx="10" class="human"/><text x="82" y="108" class="ts c-human" text-anchor="middle">技术深度版 86</text>
+        <rect x="136" y="94" width="72" height="20" rx="10" class="bx"/><text x="172" y="108" class="ts" text-anchor="middle">业务版 78</text>
+        <text x="34" y="132" class="ts">依据：2 条已确认事实 · 3 处来源</text>
+        <rect x="24" y="150" width="192" height="58" rx="8" class="bx2"/>
+        <text x="34" y="168" class="t" style="font-size:12px">项目 · 推理评测</text>
+        <rect x="34" y="178" width="84" height="20" rx="10" class="bx"/><text x="76" y="192" class="ts" text-anchor="middle">评测方法版 81</text>
+        <rect x="124" y="178" width="84" height="20" rx="10" class="human"/><text x="166" y="192" class="ts c-human" text-anchor="middle">工程版 84</text>
+        <text x="24" y="232" class="ts tmono">实习经历</text>
+        <rect x="24" y="240" width="192" height="40" rx="8" class="bx2" stroke-dasharray="4 3"/>
+        <text x="34" y="264" class="ts">已禁用 · 与本 JD 关联弱</text>
+
+        <rect x="276" y="26" width="208" height="236" rx="4" class="bx2"/>
+        <rect x="324" y="40" width="112" height="9" rx="3" class="fill-muted"/>
+        <rect x="300" y="56" width="160" height="5" rx="2" class="fill-line"/>
+        <rect x="290" y="76" width="56" height="6" rx="2" class="fill-human"/>
+        <g class="fill-line"><rect x="290" y="90" width="180" height="4" rx="2"/><rect x="290" y="100" width="168" height="4" rx="2"/><rect x="290" y="110" width="176" height="4" rx="2"/><rect x="290" y="120" width="120" height="4" rx="2"/></g>
+        <rect x="290" y="138" width="56" height="6" rx="2" class="fill-human"/>
+        <g class="fill-line"><rect x="290" y="152" width="180" height="4" rx="2"/><rect x="290" y="162" width="160" height="4" rx="2"/><rect x="290" y="172" width="174" height="4" rx="2"/></g>
+        <rect x="290" y="190" width="56" height="6" rx="2" class="fill-human"/>
+        <g class="fill-line"><rect x="290" y="204" width="180" height="4" rx="2"/><rect x="290" y="214" width="150" height="4" rx="2"/><rect x="290" y="224" width="170" height="4" rx="2"/><rect x="290" y="234" width="120" height="4" rx="2"/></g>
+        <text x="470" y="270" class="ts c-human" text-anchor="end">当前 2 页</text>
+        <line x1="290" y1="276" x2="470" y2="276" class="ln"/><circle cx="410" cy="276" r="6" class="fill-human"/>
+        <text x="290" y="270" class="ts">密度 · 紧凑</text>
+
+        <text x="544" y="34" class="tb" style="font-size:12.5px">待确认 · 1</text>
+        <rect x="544" y="44" width="192" height="104" rx="8" class="human"/>
+        <text x="554" y="64" class="t" style="font-size:12px">JD 要求容器编排经验</text>
+        <text x="554" y="82" class="ts">素材库中没有直接证据</text>
+        <rect x="554" y="92" width="60" height="20" rx="6" class="bx"/><text x="584" y="106" class="ts" text-anchor="middle">不写</text>
+        <rect x="620" y="92" width="52" height="20" rx="6" class="bx"/><text x="646" y="106" class="ts" text-anchor="middle">了解</text>
+        <rect x="678" y="92" width="50" height="20" rx="6" class="bx"/><text x="703" y="106" class="ts" text-anchor="middle">补证据</text>
+        <text x="554" y="134" class="ts">回答前不会写进简历</text>
+        <text x="544" y="176" class="tb" style="font-size:12.5px">依据来源</text>
+        <rect x="544" y="186" width="192" height="28" rx="6" class="tool"/><text x="554" y="204" class="ts">项目说明 · 相似度 0.82</text>
+        <rect x="544" y="220" width="192" height="28" rx="6" class="tool"/><text x="554" y="238" class="ts">历史简历 · 相似度 0.77</text>
+        <text x="544" y="270" class="ts">真实性自查：未引入素材外的事实</text>
+
+        <rect x="24" y="304" width="560" height="32" rx="16" class="llm"/>
+        <text x="42" y="325" class="t" style="font-size:12px">把第二个项目换成更偏工程落地的版本，再把密度调紧一点</text>
+        <rect x="596" y="304" width="66" height="32" rx="8" class="bx2"/><text x="629" y="324" class="ts tmono" text-anchor="middle">改写</text>
+        <rect x="668" y="304" width="66" height="32" rx="8" class="bx2"/><text x="701" y="324" class="ts tmono" text-anchor="middle">密度</text>
+      </svg>
+    </div>
+    <figcaption><b>图 5　编辑工作台示意（已脱敏重绘）。</b>每条经历都有两个不同角度的候选，比如“技术深度版”和“业务落地版”，各带一个与 JD 的匹配分、改写理由、依据的事实和来源片段。我做的只是挑选、锁定、拖拽，最后确认。</figcaption>
+  </figure>
+  <p>每个候选版本都附带一段“真实性核查说明”，写明这个版本没有引入素材之外的指标或职责。这些候选被选中或拒绝的次数会记进表述素材库，作为以后沉淀偏好的依据。这部分的数据结构已经就位，学习策略还在迭代。</p>
+
+  <h3>Agent 控制台：一句话驱动整个工作台</h3>
+  <p>工作台底部有一个常驻的 Agent 控制台，以指令栏的形式出现，可以直接说“密度调紧一点”“这条为什么排第一”“帮我查一下还缺 JD 里的哪些关键词”。它背后是真正的工具调用，而不是关键词匹配：</p>
+  <figure class="fig">
+    <div class="canvas">
+      <svg viewBox="0 0 760 290" role="img" aria-label="Agent 控制台的工具路由：用户的一句话和精简的工作台状态一起交给模型，模型选择客户端工具直接修改工作台，或选择服务端工具检索、改写、自查和分析，结果回到工作台">
+        <rect x="10" y="104" width="150" height="70" rx="12" class="human"/>
+        <text x="85" y="132" class="tb" text-anchor="middle">一句话指令</text><text x="85" y="152" class="ts" text-anchor="middle">“密度调紧，并解释</text><text x="85" y="166" class="ts" text-anchor="middle">第一条为什么排第一”</text>
+        <path d="M162 139 L206 139" class="ln" marker-end="url(#ar)"/>
+        <rect x="208" y="84" width="170" height="110" rx="12" class="llm"/>
+        <text x="293" y="110" class="tb c-llm" text-anchor="middle">模型 · 选择工具</text>
+        <g class="ts" text-anchor="middle"><text x="293" y="132">附带精简的工作台状态：</text><text x="293" y="150">条目 id · 当前版本 · 密度</text><text x="293" y="168">语言 · 待确认事实 · 偏好</text></g>
+        <path d="M380 116 L438 64" class="ln-tool" marker-end="url(#ar-tool)"/>
+        <path d="M380 162 L438 214" class="ln-alt" marker-end="url(#ar-alt)"/>
+
+        <rect x="440" y="10" width="310" height="112" rx="12" class="tool"/>
+        <text x="456" y="34" class="tb">客户端工具 · 9 个</text><text x="736" y="34" class="ts" text-anchor="end">前端直接执行</text>
+        <g class="ts"><text x="456" y="58">调整密度 · 切换语言 · 全部选最高分</text><text x="456" y="78">模块排序 · 启用或禁用条目 · 回答事实确认</text><text x="456" y="98">开关偏好规则 · 导出 · 排版建议</text></g>
+        <text x="456" y="114" class="ts c-tool">与手动操作走同一套状态更新</text>
+
+        <rect x="440" y="160" width="310" height="112" rx="12" class="alt"/>
+        <text x="456" y="184" class="tb">服务端工具 · 8 个</text><text x="736" y="184" class="ts" text-anchor="end">后端执行后回传</text>
+        <g class="ts"><text x="456" y="208">按指令改写条目 · 检索知识库</text><text x="456" y="228">真实性自查 · JD 缺口分析 · 解释排序</text><text x="456" y="248">汇报上下文 · 列出已选条目 · 列出事实</text></g>
+        <text x="456" y="264" class="ts c-alt">改写只能换说法，不能加事实</text>
+
+        <rect x="10" y="222" width="368" height="56" rx="10" class="zone"/>
+        <text x="24" y="244" class="ts">约束：每次最多调用 3 个工具</text>
+        <text x="24" y="262" class="ts">id 必须来自当前状态 · 不能只用文字假装完成</text>
+      </svg>
+    </div>
+    <figcaption><b>图 6　Agent 控制台的工具路由。</b>只需要改界面状态的动作，交给前端执行，复用和手动操作完全相同的状态更新；需要数据或模型的动作，才交给后端。这样一来，“Agent 做的”和“我手动做的”永远落在同一份状态上。</figcaption>
+  </figure>
+
+  <h2 id="compare"><span class="no">08</span>横向对比：五种路线各适合什么</h2>
+  <div class="tbl-wrap">
+    <table class="tbl">
+      <thead><tr><th>路线</th><th>最适合的场景</th><th>主要收益</th><th>搭建成本</th><th>可控与可复现</th><th>主要短板</th></tr></thead>
+      <tbody>
+        <tr><td>A · Skill</td><td>规则稳定、频率高、一个人用</td><td>经验沉淀成规则，改一份简历只需要一句话</td><td>很低：一份规则文件</td><td>中：取决于对话质量</td><td>状态不沉淀，每次都要重新理解上下文</td></tr>
+        <tr><td>B · HTML + 脚本</td><td>成品基本定型，只需要小改、翻译、导出</td><td>改完即存，一键出英文版，不会漏条目</td><td>低：一个本地服务</td><td>高：备份、结构检查、页数检查</td><td>只覆盖编辑和导出这一段</td></tr>
+        <tr><td>C · 浏览器工作台</td><td>涉及外部账号和不可逆动作</td><td>不疲劳、不跳步，挡住发错附件、回错人</td><td>中：一套流程规则</td><td>高：每步确认、每步回读核对</td><td>慢，依赖页面状态，不适合批量</td></tr>
+        <tr><td>D · 开源系统</td><td>岗位多，需要先筛一遍</td><td>不重复造轮子，快速筛掉不值得投的岗位</td><td>低：配置为主</td><td>中</td><td>评分维度通用，不了解个人事实库</td></tr>
+        <tr class="hl"><td>E · 完整应用</td><td>需要沉淀事实、偏好、版本和记录</td><td>事实、偏好、版本和记录可以长期积累、反复使用</td><td>高：前后端加数据模型</td><td>最高：事实确认、来源引用、快照</td><td>建设和维护成本最高</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h2 id="choose"><span class="no">09</span>选型三问</h2>
+  <p>回头看，决定用哪条路线的其实就是三个问题，而且要按这个顺序问：</p>
+  <div class="cards three">
+    <div class="card risk"><span class="tag">第一问</span><h4>涉及外部账号或不可逆的动作吗？</h4><p>涉及的话，无论用什么技术，都必须分步确认、回读核对，异常时立即停下交还给人。这一条优先级最高。</p></div>
+    <div class="card llm"><span class="tag">第二问</span><h4>需要跨次沉淀状态吗？</h4><p>事实、偏好、版本、记录，只要其中一样需要长期保存、可以比较，就值得做一个应用，并给它一个唯一可信来源。</p></div>
+    <div class="card tool"><span class="tag">第三问</span><h4>规则稳定、使用频繁吗？</h4><p>是的话，写成 Skill 或脚本就够了；如果还在探索阶段，就直接对话，不要过早地产品化。</p></div>
+  </div>
+  <div class="callout"><span class="label">判断</span><p>Agent 应用是这五种里最“像作品”的一个，但它不是默认答案。<strong>技术选型应该从场景、风险和成本出发，而不是从“能不能做成 Agent”出发。</strong>五条路线并存，恰恰是这个判断的结果。</p></div>
+
+  <h2 id="truth"><span class="no">10</span>贯穿五条路线的一条红线：真实性</h2>
+  <p>简历是 AI 最容易“好心办坏事”的地方：它很乐意帮你补一个看起来合理的数字，或者加一个 JD 里写了、你却没真正用过的技术。所以每条路线都有对应的防线：</p>
+  <div class="cards">
+    <div class="card tool"><span class="tag">事实库</span><h4>只从已确认的事实出发</h4><p>原始资料先被提取成一条条原子事实，确认过的才能在生成时被引用。</p></div>
+    <div class="card human"><span class="tag">事实确认</span><h4>没证据就先问</h4><p>新技能、冲突、指标三类问题，回答之前都会阻断生成。</p></div>
+    <div class="card llm"><span class="tag">来源引用</span><h4>每个版本都说明依据</h4><p>标出引用了哪些事实、哪些检索片段，附相似度，并写一段真实性核查说明。</p></div>
+    <div class="card risk"><span class="tag">自查</span><h4>导出前再查一遍夸大</h4><p>在 Agent 控制台里可以随时调用真实性自查工具，逐条检查有没有无依据的数字和职责。</p></div>
+  </div>
+
+  <h2 id="summary"><span class="no">11</span>小结</h2>
+  <ol class="takeaways">
+    <li>同一个问题可以有很多种 AI 解法。先把验收标准写清楚，再去比较哪种解法最划算。</li>
+    <li>LLM 只放在真正需要它的那一步。备份、结构检查、页数检查、导出，全部交给确定性的脚本。</li>
+    <li>涉及外部账号和不可逆动作时，分步确认、回读核对、异常即停，比任何“智能”都重要。</li>
+    <li>做完整应用的理由，是需要沉淀状态；基础设施的规模应该跟着数据规模走。</li>
+    <li>真实性是红线，要用机制去保证：事实库、事实确认、来源引用、自查，而不是靠一句“请不要编造”。</li>
+  </ol>
+
+  <div class="skillbar"><b>这个作品体现的能力</b>
+    <div class="pills"><span class="pill acc">Agent 应用设计</span><span class="pill acc">工具调用</span><span class="pill acc">RAG 与知识库</span><span class="pill">技术选型与成本判断</span><span class="pill">全栈实现</span><span class="pill">人工确认机制</span><span class="pill">产品规格</span></div>
+  </div>
+
+  <p class="note">本文中的界面与流程图为脱敏重绘。个人联系方式、简历内容、投递公司和招聘平台信息均未展示；开源项目 career-ops 的描述引自其公开文档。</p>
+
+  <nav class="postnav">
+    <a href="04-mri-label-free-embedding.html"><small>← 上一篇</small><span>多序列脑 MRI 的无标签表征学习</span></a>
+    <a class="next" href="../index.html"><small>回到 →</small><span>作品集首页</span></a>
+  </nav>
+</article>
+
+<aside class="toc">
+  <b>目录</b>
+  <ol>
+    <li><a href="#problem">验收标准</a></li>
+    <li><a href="#map">全流程与五种路线</a></li>
+    <li><a href="#a">A · Skill</a></li>
+    <li><a href="#b">B · HTML + 脚本</a></li>
+    <li><a href="#c">C · 浏览器工作台</a></li>
+    <li><a href="#d">D · 开源系统</a></li>
+    <li><a href="#e">E · 完整应用</a></li>
+    <li><a href="#compare">横向对比</a></li>
+    <li><a href="#choose">选型三问</a></li>
+    <li><a href="#truth">真实性红线</a></li>
+    <li><a href="#summary">小结</a></li>
+  </ol>
+</aside>
+</div>
+
+<footer class="footer">
+  <div class="wrap">
+    <span>© 2026 Yu Dian · 文章与插图以 CC BY 4.0 提供</span>
+    <span><a href="https://github.com/evelyn77yu">GitHub</a> · <a href="https://evelyn77yu.github.io">主页</a></span>
+  </div>
+</footer>
+</body>
+</html>
